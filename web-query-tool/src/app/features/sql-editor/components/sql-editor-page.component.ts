@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { MonacoSqlEditorComponent } from './monaco-sql-editor.component';
 import { QueryResultsGridComponent } from '../../data-grid/components/query-results-grid.component';
 import { QueryHistoryPanelComponent } from './query-history-panel.component';
+import { SqlSnippetsPanelComponent } from './sql-snippets-panel.component';
 import { ConnectionStatusIndicatorComponent } from '../../../shared/components/connection-status-indicator.component';
 import { QueryResult } from '../../../core/models/query.models';
 import { ConnectionService } from '../../../core/services/connection.service';
@@ -26,6 +27,7 @@ import { ToastService } from '../../../core/services/toast.service';
     MonacoSqlEditorComponent,
     QueryResultsGridComponent,
     QueryHistoryPanelComponent,
+    SqlSnippetsPanelComponent,
     ConnectionStatusIndicatorComponent
   ],
   template: `
@@ -51,6 +53,9 @@ import { ToastService } from '../../../core/services/toast.service';
                 ➕ Add Connection
               </a>
             }
+            <button class="btn btn-sm btn-secondary" (click)="toggleSnippets()">
+              {{ showSnippets() ? '✕ Hide' : '📚 Show' }} Snippets
+            </button>
             <button class="btn btn-sm btn-secondary" (click)="toggleHistory()">
               {{ showHistory() ? '✕ Hide' : '📜 Show' }} History
             </button>
@@ -61,7 +66,10 @@ import { ToastService } from '../../../core/services/toast.service';
       </div>
 
       <!-- Main Content Area with Sidebar Layout -->
-      <div class="page-content" [class.with-sidebar]="showHistory()">
+      <div class="page-content"
+           [class.with-sidebar]="showHistory()"
+           [class.with-snippets]="showSnippets()"
+           [class.with-both-sidebars]="showHistory() && showSnippets()">
         <!-- History Sidebar -->
         @if (showHistory()) {
           <aside class="history-sidebar">
@@ -137,6 +145,15 @@ import { ToastService } from '../../../core/services/toast.service';
         </section>
         </div>
         <!-- End Editor Section -->
+
+        <!-- Snippets Sidebar -->
+        @if (showSnippets()) {
+          <aside class="snippets-sidebar">
+            <app-sql-snippets-panel
+              (snippetSelected)="onSnippetSelected($event)">
+            </app-sql-snippets-panel>
+          </aside>
+        }
       </div>
 
       <!-- Modern Status Bar -->
@@ -212,8 +229,28 @@ import { ToastService } from '../../../core/services/toast.service';
       gap: var(--spacing-lg);
     }
 
+    .page-content.with-snippets {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: var(--spacing-lg);
+    }
+
+    .page-content.with-both-sidebars {
+      display: grid;
+      grid-template-columns: 320px 1fr 320px;
+      gap: var(--spacing-lg);
+    }
+
     /* History Sidebar */
     .history-sidebar {
+      min-width: 320px;
+      max-width: 400px;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* Snippets Sidebar */
+    .snippets-sidebar {
       min-width: 320px;
       max-width: 400px;
       height: 100%;
@@ -282,6 +319,7 @@ export class SqlEditorPageComponent {
   queryStatus = signal<string>('Ready');
   lastQuerySuccess = signal<boolean>(false);
   showHistory = signal<boolean>(false);
+  showSnippets = signal<boolean>(false);
 
   /**
    * Handle successful query execution
@@ -318,11 +356,28 @@ export class SqlEditorPageComponent {
   }
 
   /**
+   * Toggle SQL snippets panel
+   */
+  toggleSnippets(): void {
+    this.showSnippets.set(!this.showSnippets());
+  }
+
+  /**
    * Load query from history into editor
    */
   onQuerySelected(sql: string): void {
     if (this.sqlEditor) {
       this.sqlEditor.setSQL(sql);
+    }
+  }
+
+  /**
+   * Load SQL snippet template into editor
+   */
+  onSnippetSelected(template: string): void {
+    if (this.sqlEditor) {
+      this.sqlEditor.setSQL(template);
+      this.toast.success('SQL template loaded into editor!');
     }
   }
 }
