@@ -1,8 +1,10 @@
-import { Component, ViewChild, signal } from '@angular/core';
+import { Component, ViewChild, signal, inject, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { MonacoSqlEditorComponent } from './monaco-sql-editor.component';
 import { QueryResultsGridComponent } from '../../data-grid/components/query-results-grid.component';
 import { QueryResult } from '../../../core/models/query.models';
+import { ConnectionService } from '../../../core/services/connection.service';
 
 /**
  * SQL Editor Page Component
@@ -17,19 +19,33 @@ import { QueryResult } from '../../../core/models/query.models';
   standalone: true,
   imports: [
     CommonModule,
+    RouterLink,
     MonacoSqlEditorComponent,
     QueryResultsGridComponent
   ],
   template: `
     <div class="sql-editor-page">
-      <!-- Page Header with Technology Badges -->
+      <!-- Page Header with Connection Info -->
       <div class="page-header">
         <div class="flex items-center justify-between">
           <div>
             <h2 class="m-0 text-inverse font-semibold">SQL Editor</h2>
             <p class="text-secondary text-sm mt-sm m-0">Execute queries with Monaco Editor and real-time SignalR updates</p>
           </div>
-          <div class="flex items-center gap-sm">
+          <div class="flex items-center gap-md">
+            @if (activeConnection(); as conn) {
+              <div class="connection-info">
+                <span class="text-secondary text-xs">Active Connection:</span>
+                <div class="flex items-center gap-xs mt-xs">
+                  <span class="badge badge-success">{{ conn.name }}</span>
+                  <span class="text-secondary text-xs">{{ conn.type }}</span>
+                </div>
+              </div>
+            } @else {
+              <a routerLink="/connections" class="btn btn-sm btn-primary">
+                ➕ Add Connection
+              </a>
+            }
             <span class="badge badge-success">WAF Compatible</span>
             <span class="badge badge-primary">.NET 9 + Angular 19</span>
           </div>
@@ -46,19 +62,34 @@ import { QueryResult } from '../../../core/models/query.models';
                 📝 SQL Editor
                 <span class="badge badge-primary text-xs">VS Code Engine</span>
               </h3>
-              <div class="flex items-center gap-sm text-sm text-secondary">
-                <span>Database: <strong class="text-primary">{{ selectedDatabaseType() }}</strong></span>
-              </div>
+              @if (activeConnection(); as conn) {
+                <div class="flex items-center gap-sm text-sm text-secondary">
+                  <span>Database: <strong class="text-primary">{{ conn.type }}</strong></span>
+                </div>
+              }
             </div>
           </div>
 
           <div class="card-body p-0">
-            <app-monaco-sql-editor
-              [connectionId]="selectedConnectionId()"
-              [databaseType]="selectedDatabaseType()"
-              (queryExecuted)="onQueryExecuted($event)"
-              (queryError)="onQueryError($event)">
-            </app-monaco-sql-editor>
+            @if (activeConnection(); as conn) {
+              <app-monaco-sql-editor
+                [connectionId]="conn.id"
+                [databaseType]="conn.type"
+                (queryExecuted)="onQueryExecuted($event)"
+                (queryError)="onQueryError($event)">
+              </app-monaco-sql-editor>
+            } @else {
+              <div class="no-connection">
+                <div class="text-center p-lg">
+                  <div style="font-size: 48px; margin-bottom: var(--spacing-md);">🔌</div>
+                  <h3 class="text-inverse">No Connection Selected</h3>
+                  <p class="text-secondary mb-lg">Add a database connection to start querying</p>
+                  <a routerLink="/connections" class="btn btn-primary">
+                    Manage Connections
+                  </a>
+                </div>
+              </div>
+            }
           </div>
         </section>
 
@@ -90,19 +121,28 @@ import { QueryResult } from '../../../core/models/query.models';
       <!-- Modern Status Bar -->
       <footer class="status-bar">
         <div class="flex items-center gap-lg text-sm">
-          <div class="flex items-center gap-xs">
-            <span class="text-secondary">🔌 Connection:</span>
-            <span class="badge badge-primary">{{ selectedConnectionId() || 'Not Connected' }}</span>
-          </div>
+          @if (activeConnection(); as conn) {
+            <div class="flex items-center gap-xs">
+              <span class="text-secondary">🔌 Connection:</span>
+              <span class="badge badge-primary">{{ conn.name }}</span>
+            </div>
 
-          <div class="toolbar-separator" style="height: 16px;"></div>
+            <div class="toolbar-separator" style="height: 16px;"></div>
 
-          <div class="flex items-center gap-xs">
-            <span class="text-secondary">💾 Database:</span>
-            <span class="text-primary font-medium">{{ selectedDatabaseType() }}</span>
-          </div>
+            <div class="flex items-center gap-xs">
+              <span class="text-secondary">💾 Database:</span>
+              <span class="text-primary font-medium">{{ conn.type }}</span>
+            </div>
 
-          <div class="toolbar-separator" style="height: 16px;"></div>
+            <div class="toolbar-separator" style="height: 16px;"></div>
+
+            <div class="flex items-center gap-xs">
+              <span class="text-secondary">🌐 Host:</span>
+              <span class="text-secondary text-xs">{{ conn.host }}:{{ conn.port }}</span>
+            </div>
+
+            <div class="toolbar-separator" style="height: 16px;"></div>
+          }
 
           <div class="flex items-center gap-xs">
             <span class="text-secondary">📡 Status:</span>
@@ -178,12 +218,15 @@ import { QueryResult } from '../../../core/models/query.models';
   `]
 })
 export class SqlEditorPageComponent {
+  private connectionService = inject(ConnectionService);
+
   @ViewChild(QueryResultsGridComponent)
   resultsGrid!: QueryResultsGridComponent;
 
+  // Use shared connection service
+  activeConnection = this.connectionService.activeConnection;
+
   // Component state using Angular 19 signals
-  selectedConnectionId = signal<string>('postgres-prod-001');
-  selectedDatabaseType = signal<'PostgreSQL' | 'MySQL' | 'SQLServer' | 'Redshift'>('PostgreSQL');
   queryStatus = signal<string>('Ready');
   lastQuerySuccess = signal<boolean>(false);
 
@@ -213,14 +256,5 @@ export class SqlEditorPageComponent {
 
     // Show error notification
     alert(`Query execution failed: ${error.error || error.message}`);
-  }
-
-  /**
-   * Change database connection
-   */
-  changeConnection(connectionId: string, dbType: 'PostgreSQL' | 'MySQL' | 'SQLServer' | 'Redshift'): void {
-    this.selectedConnectionId.set(connectionId);
-    this.selectedDatabaseType.set(dbType);
-    this.queryStatus.set('Connection changed');
   }
 }

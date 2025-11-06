@@ -1,7 +1,8 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DatabaseConnection, DatabaseType } from '../../../core/models/query.models';
+import { ConnectionService } from '../../../core/services/connection.service';
 
 /**
  * Connection Manager Component
@@ -277,7 +278,10 @@ import { DatabaseConnection, DatabaseType } from '../../../core/models/query.mod
   `]
 })
 export class ConnectionManagerComponent {
-  connections = signal<DatabaseConnection[]>(this.loadConnections());
+  private connectionService = inject(ConnectionService);
+
+  // Use shared connection service
+  connections = this.connectionService.connections;
   showForm = signal(false);
   editingConnection = signal<DatabaseConnection | null>(null);
 
@@ -301,47 +305,37 @@ export class ConnectionManagerComponent {
       return;
     }
 
-    const connections = this.connections();
-
     if (this.editingConnection()) {
-      // Update existing
-      const index = connections.findIndex(c => c.id === this.editingConnection()!.id);
-      connections[index] = { ...this.formData };
+      // Update existing connection
+      this.connectionService.updateConnection(this.editingConnection()!.id, this.formData);
     } else {
-      // Add new
-      const newConnection: DatabaseConnection = {
-        ...this.formData,
-        id: this.generateId(),
-        isActive: connections.length === 0 // First connection is active
-      };
-      connections.push(newConnection);
+      // Add new connection
+      this.connectionService.addConnection(this.formData);
     }
 
-    this.connections.set([...connections]);
-    this.saveConnections(connections);
     this.closeForm();
   }
 
   deleteConnection(conn: DatabaseConnection): void {
     if (!confirm(`Delete connection "${conn.name}"?`)) return;
-
-    const connections = this.connections().filter(c => c.id !== conn.id);
-    this.connections.set(connections);
-    this.saveConnections(connections);
+    this.connectionService.deleteConnection(conn.id);
   }
 
   setActive(conn: DatabaseConnection): void {
-    const connections = this.connections().map(c => ({
-      ...c,
-      isActive: c.id === conn.id
-    }));
-    this.connections.set(connections);
-    this.saveConnections(connections);
+    this.connectionService.setActiveConnection(conn.id);
   }
 
-  testConnection(conn: DatabaseConnection): void {
-    alert(`Testing connection to ${conn.name}...\n\nThis would test: ${conn.host}:${conn.port}`);
-    // TODO: Implement actual connection test via API
+  async testConnection(conn: DatabaseConnection): Promise<void> {
+    try {
+      const result = await this.connectionService.testConnection(conn);
+      if (result) {
+        alert(`✅ Connection successful!\n\nConnected to: ${conn.name}\nHost: ${conn.host}:${conn.port}`);
+      } else {
+        alert(`❌ Connection failed!\n\nCould not connect to: ${conn.name}`);
+      }
+    } catch (error) {
+      alert(`❌ Connection error!\n\n${error}`);
+    }
   }
 
   closeForm(): void {
@@ -357,27 +351,7 @@ export class ConnectionManagerComponent {
       port: 5432,
       database: '',
       username: '',
-      password: '',
-      isActive: false
+      password: ''
     };
-  }
-
-  private generateId(): string {
-    return 'conn_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-  }
-
-  private loadConnections(): DatabaseConnection[] {
-    const stored = localStorage.getItem('database_connections');
-    if (!stored) return [];
-
-    try {
-      return JSON.parse(stored);
-    } catch {
-      return [];
-    }
-  }
-
-  private saveConnections(connections: DatabaseConnection[]): void {
-    localStorage.setItem('database_connections', JSON.stringify(connections));
   }
 }
