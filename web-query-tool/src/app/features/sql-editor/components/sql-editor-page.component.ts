@@ -4,6 +4,7 @@ import { RouterLink } from '@angular/router';
 import { MonacoSqlEditorComponent } from './monaco-sql-editor.component';
 import { QueryResultsGridComponent } from '../../data-grid/components/query-results-grid.component';
 import { QueryHistoryPanelComponent } from './query-history-panel.component';
+import { ConnectionStatusIndicatorComponent } from '../../../shared/components/connection-status-indicator.component';
 import { QueryResult } from '../../../core/models/query.models';
 import { ConnectionService } from '../../../core/services/connection.service';
 import { ToastService } from '../../../core/services/toast.service';
@@ -24,7 +25,8 @@ import { ToastService } from '../../../core/services/toast.service';
     RouterLink,
     MonacoSqlEditorComponent,
     QueryResultsGridComponent,
-    QueryHistoryPanelComponent
+    QueryHistoryPanelComponent,
+    ConnectionStatusIndicatorComponent
   ],
   template: `
     <div class="sql-editor-page">
@@ -140,6 +142,11 @@ import { ToastService } from '../../../core/services/toast.service';
       <!-- Modern Status Bar -->
       <footer class="status-bar">
         <div class="flex items-center gap-lg text-sm">
+          <!-- Backend Connection Status -->
+          <app-connection-status></app-connection-status>
+
+          <div class="toolbar-separator" style="height: 16px;"></div>
+
           @if (activeConnection(); as conn) {
             <div class="flex items-center gap-xs">
               <span class="text-secondary">🔌 Connection:</span>
