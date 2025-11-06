@@ -1,5 +1,6 @@
 import { Injectable, signal, computed } from '@angular/core';
 import { DatabaseConnection } from '../models/query.models';
+import { environment } from '../../../environments/environment';
 
 /**
  * Connection Service
@@ -137,10 +138,8 @@ export class ConnectionService {
       const testSQL = 'SELECT 1 AS test';
       const encodedSQL = btoa(testSQL);
 
-      // Use environment API URL
-      const apiUrl = typeof window !== 'undefined' && window.location.protocol === 'https:'
-        ? 'https://localhost:5001/api/v1'
-        : 'http://localhost:5000/api/v1';
+      // Use environment API URL (uses correct URL for dev/prod)
+      const apiUrl = environment.apiUrlHttps;
 
       const response = await fetch(`${apiUrl}/query/execute`, {
         method: 'POST',
