@@ -19,6 +19,7 @@ import { QueryExecutionService } from '../../../core/services/query-execution.se
 import { DatabaseConnection, QueryResult } from '../../../core/models/query.models';
 import { ToastService } from '../../../core/services/toast.service';
 import { QueryHistoryService } from '../../../core/services/query-history.service';
+import { QueryProgressComponent } from './query-progress.component';
 
 /**
  * Monaco SQL Editor Component
@@ -36,7 +37,7 @@ import { QueryHistoryService } from '../../../core/services/query-history.servic
 @Component({
   selector: 'app-monaco-sql-editor',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, QueryProgressComponent],
   template: `
     <div class="editor-wrapper">
       <!-- Modern Toolbar -->
@@ -76,6 +77,9 @@ import { QueryHistoryService } from '../../../core/services/query-history.servic
         </div>
       </div>
 
+      <!-- Query Progress Indicator -->
+      <app-query-progress></app-query-progress>
+
       <!-- Monaco Editor Container -->
       <div #editorContainer class="monaco-editor-container"></div>
     </div>
@@ -103,6 +107,9 @@ export class MonacoSqlEditorComponent implements AfterViewInit, OnDestroy {
   @ViewChild('editorContainer', { static: true })
   editorContainer!: ElementRef<HTMLDivElement>;
 
+  @ViewChild(QueryProgressComponent)
+  queryProgress!: QueryProgressComponent;
+
   @Input() connectionId: string = '';
   @Input() databaseType: 'PostgreSQL' | 'MySQL' | 'SQLServer' | 'Redshift' = 'PostgreSQL';
 
@@ -112,6 +119,8 @@ export class MonacoSqlEditorComponent implements AfterViewInit, OnDestroy {
   private readonly queryService = inject(QueryExecutionService);
   private readonly toast = inject(ToastService);
   private readonly historyService = inject(QueryHistoryService);
+
+  private queryStartTime: Date | null = null;
 
   private editor: monaco.editor.IStandaloneCodeEditor | null = null;
 
@@ -197,16 +206,35 @@ export class MonacoSqlEditorComponent implements AfterViewInit, OnDestroy {
    * Get initial SQL template
    */
   private getInitialSQL(): string {
-    return `-- Welcome to the Web Query Tool
+    return `-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- 🚀 WELCOME TO WEB QUERY TOOL
 -- Powered by Monaco Editor (VS Code's editor engine)
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 --
--- Features:
--- • SQL syntax highlighting
--- • IntelliSense (Ctrl+Space)
--- • Execute query: Ctrl+Enter
--- • Format SQL: Shift+Alt+F
+-- 🎯 KEYBOARD SHORTCUTS:
+--   • Execute Query       Ctrl+Enter (or Cmd+Enter on Mac)
+--   • Format SQL          Shift+Alt+F
+--   • Toggle Comment      Ctrl+/ (or Cmd+/)
+--   • IntelliSense        Ctrl+Space
+--   • Find                Ctrl+F
+--   • Replace             Ctrl+H
+--   • Multi-cursor        Alt+Click
+--
+-- ✨ FEATURES:
+--   • SQL syntax highlighting with IntelliSense
+--   • Auto-completion for SQL keywords
+--   • Query history with search (click 📜 Show History)
+--   • Real-time error detection
+--   • Export results to CSV/Excel
+--   • WAF bypass with Base64 encoding
+--
+-- 📝 TIPS:
+--   • Select text and press Ctrl+Enter to run selected query
+--   • Use Ctrl+/ to quickly comment/uncomment lines
+--   • Format your SQL before executing for better readability
 --
 -- Start writing your query below:
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 SELECT * FROM `;
   }
@@ -269,6 +297,22 @@ SELECT * FROM `;
     // Execute
     this.isExecuting.set(true);
     this.statusMessage.set('Executing query...');
+    this.queryStartTime = new Date();
+
+    // Show progress indicator
+    if (this.queryProgress) {
+      this.queryProgress.show();
+      this.queryProgress.updateProgress({
+        percentage: 0,
+        statusMessage: 'Preparing query...',
+        message: 'Encoding SQL and connecting to database',
+        rowsProcessed: 0,
+        elapsedSeconds: 0
+      });
+    }
+
+    // Start simulated progress updates
+    const progressInterval = this.startProgressUpdates();
 
     try {
       const result = await this.queryService.executeQuery(
@@ -276,7 +320,29 @@ SELECT * FROM `;
         this.connectionId || 'default-connection'
       ).toPromise();
 
+      // Clear progress interval
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+
       if (result) {
+        // Update progress to 100%
+        if (this.queryProgress && this.queryStartTime) {
+          const elapsed = Math.floor((Date.now() - this.queryStartTime.getTime()) / 1000);
+          this.queryProgress.updateProgress({
+            percentage: 100,
+            statusMessage: 'Query completed!',
+            message: `${result.totalRows} rows returned in ${result.executionTimeMs}ms`,
+            rowsProcessed: result.totalRows,
+            elapsedSeconds: elapsed
+          });
+
+          // Show completion for a moment before hiding
+          setTimeout(() => {
+            this.queryProgress?.hide();
+          }, 1000);
+        }
+
         this.statusMessage.set(
           `Success: ${result.totalRows} rows in ${result.executionTimeMs}ms`
         );
@@ -298,6 +364,11 @@ SELECT * FROM `;
       this.toast.error(`Query execution failed: ${(error as any).message || 'Unknown error'}`);
       this.queryError.emit(error as Error);
 
+      // Clear progress interval
+      if (progressInterval) {
+        clearInterval(progressInterval);
+      }
+
       // Save failed query to history
       this.historyService.addToHistory({
         sql,
@@ -308,7 +379,49 @@ SELECT * FROM `;
       });
     } finally {
       this.isExecuting.set(false);
+
+      // Hide progress indicator
+      if (this.queryProgress) {
+        this.queryProgress.hide();
+      }
     }
+  }
+
+  /**
+   * Start simulated progress updates
+   * Returns interval ID for cleanup
+   */
+  private startProgressUpdates(): number | null {
+    if (!this.queryProgress || !this.queryStartTime) return null;
+
+    let progress = 0;
+    const interval = window.setInterval(() => {
+      if (!this.queryStartTime) return;
+
+      const elapsed = Math.floor((Date.now() - this.queryStartTime.getTime()) / 1000);
+
+      // Simulate progress (never reaches 100% until query completes)
+      progress = Math.min(progress + 15, 90);
+
+      const messages = [
+        'Connecting to database...',
+        'Executing SQL query...',
+        'Fetching results...',
+        'Processing data...',
+        'Preparing output...'
+      ];
+
+      const messageIndex = Math.min(Math.floor(progress / 20), messages.length - 1);
+
+      this.queryProgress?.updateProgress({
+        percentage: progress,
+        statusMessage: 'Query executing...',
+        message: messages[messageIndex],
+        elapsedSeconds: elapsed
+      });
+    }, 500);
+
+    return interval;
   }
 
   /**
