@@ -20,6 +20,12 @@
     </div>
 
     <div class="nav-actions">
+      <button
+        class="btn btn-sm btn-ghost"
+        (click)="toggleTheme()"
+        [title]="isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'">
+        {{ isDarkMode ? '☀️' : '🌙' }}
+      </button>
       <button class="btn btn-sm btn-ghost" title="Keyboard Shortcuts (Press ?)">
         ⌨️
       </button>

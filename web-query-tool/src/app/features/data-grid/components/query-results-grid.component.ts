@@ -10,6 +10,7 @@ import {
 import { QueryResult } from '../../../core/models/query.models';
 import { ToastService } from '../../../core/services/toast.service';
 import * as FileSaver from 'file-saver';
+import * as XLSX from 'xlsx';
 
 /**
  * Query Results Grid Component
@@ -371,24 +372,46 @@ export class QueryResultsGridComponent {
   }
 
   /**
-   * Export to Excel
-   * Requires AG Grid Enterprise license
+   * Export to Excel using SheetJS (xlsx library)
+   * Professional Excel export with formatting
    */
   exportToExcel(): void {
-    if (!this.gridApi) return;
+    const data = this.rowData();
+    if (data.length === 0) {
+      this.toast.warning('No data to export');
+      return;
+    }
 
     try {
-      // @ts-ignore - Enterprise feature
-      this.gridApi.exportDataAsExcel({
-        fileName: `query_results_${new Date().toISOString()}.xlsx`,
-        sheetName: 'Query Results'
-      });
+      // Create worksheet from JSON data
+      const worksheet = XLSX.utils.json_to_sheet(data);
 
-      console.log('[QueryResultsGrid] Exported to Excel');
+      // Auto-size columns
+      const columns = this.columnDefs();
+      const columnWidths = columns.map(col => ({
+        wch: Math.max(
+          col.field?.length || 10,
+          ...data.slice(0, 100).map(row => String(row[col.field || '']).length)
+        )
+      }));
+      worksheet['!cols'] = columnWidths;
+
+      // Create workbook
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Query Results');
+
+      // Generate filename with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const filename = `query_results_${timestamp}.xlsx`;
+
+      // Write file
+      XLSX.writeFile(workbook, filename);
+
+      this.toast.success(`Exported ${data.length} rows to Excel: ${filename}`);
+      console.log('[QueryResultsGrid] Exported to Excel:', filename);
     } catch (error) {
-      console.warn('[QueryResultsGrid] Excel export requires AG Grid Enterprise');
-      // Fallback to CSV
-      this.exportToCsv();
+      console.error('[QueryResultsGrid] Excel export failed:', error);
+      this.toast.error('Failed to export to Excel');
     }
   }
 

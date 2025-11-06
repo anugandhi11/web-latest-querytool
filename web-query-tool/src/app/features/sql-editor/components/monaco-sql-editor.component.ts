@@ -19,6 +19,7 @@ import { QueryExecutionService } from '../../../core/services/query-execution.se
 import { DatabaseConnection, QueryResult } from '../../../core/models/query.models';
 import { ToastService } from '../../../core/services/toast.service';
 import { QueryHistoryService } from '../../../core/services/query-history.service';
+import { QueryDraftService } from '../../../core/services/query-draft.service';
 import { QueryProgressComponent } from './query-progress.component';
 
 /**
@@ -39,7 +40,7 @@ import { QueryProgressComponent } from './query-progress.component';
   standalone: true,
   imports: [CommonModule, QueryProgressComponent],
   template: `
-    <div class="editor-wrapper">
+    <div class="editor-wrapper" [class.fullscreen]="isFullscreen()">
       <!-- Modern Toolbar -->
       <div class="toolbar">
         <div class="toolbar-group">
@@ -57,6 +58,9 @@ import { QueryProgressComponent } from './query-progress.component';
           </button>
           <button class="btn btn-ghost" (click)="clearEditor()">
             🗑️ Clear
+          </button>
+          <button class="btn btn-ghost" (click)="toggleFullscreen()" [title]="isFullscreen() ? 'Exit Full Screen' : 'Full Screen'">
+            {{ isFullscreen() ? '⬅️' : '⛶' }}
           </button>
         </div>
 
@@ -91,6 +95,20 @@ import { QueryProgressComponent } from './query-progress.component';
       height: 100%;
       width: 100%;
       overflow: hidden;
+      transition: all var(--transition-base);
+    }
+
+    .editor-wrapper.fullscreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 9999;
+      background: var(--bg-primary);
+      padding: 0;
+      margin: 0;
+      border-radius: 0;
     }
 
     .editor-container {
@@ -119,22 +137,44 @@ export class MonacoSqlEditorComponent implements AfterViewInit, OnDestroy {
   private readonly queryService = inject(QueryExecutionService);
   private readonly toast = inject(ToastService);
   private readonly historyService = inject(QueryHistoryService);
+  private readonly draftService = inject(QueryDraftService);
 
   private queryStartTime: Date | null = null;
+  private autoSaveInterval: number | null = null;
 
   private editor: monaco.editor.IStandaloneCodeEditor | null = null;
 
   // Angular 19 signals for reactive state
   isExecuting = signal(false);
   statusMessage = signal('Ready');
+  isFullscreen = signal(false);
 
   ngAfterViewInit(): void {
     this.initializeMonacoEditor();
+
+    // Load saved draft if exists
+    const draft = this.draftService.loadDraft();
+    if (draft && this.editor) {
+      this.editor.setValue(draft.sql);
+      this.statusMessage.set('Draft loaded');
+      this.toast.success(`Draft from ${this.formatDraftTime(draft.savedAt)} loaded`);
+    }
+
+    // Start auto-save
+    this.autoSaveInterval = this.draftService.startAutoSave(
+      () => this.getSQL(),
+      this.connectionId
+    );
   }
 
   ngOnDestroy(): void {
     if (this.editor) {
       this.editor.dispose();
+    }
+
+    // Stop auto-save
+    if (this.autoSaveInterval) {
+      this.draftService.stopAutoSave(this.autoSaveInterval);
     }
   }
 
@@ -471,5 +511,39 @@ SELECT * FROM `;
   setSQL(sql: string): void {
     if (!this.editor) return;
     this.editor.setValue(sql);
+  }
+
+  /**
+   * Toggle full-screen editor mode
+   */
+  toggleFullscreen(): void {
+    this.isFullscreen.set(!this.isFullscreen());
+
+    // Layout editor after fullscreen toggle
+    setTimeout(() => {
+      if (this.editor) {
+        this.editor.layout();
+      }
+    }, 100);
+  }
+
+  /**
+   * Format draft timestamp for display
+   */
+  private formatDraftTime(date: Date): string {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) {
+      return 'just now';
+    } else if (diffMins < 60) {
+      return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+    } else if (diffMins < 1440) {
+      const hours = Math.floor(diffMins / 60);
+      return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+    } else {
+      return date.toLocaleString();
+    }
   }
 }
