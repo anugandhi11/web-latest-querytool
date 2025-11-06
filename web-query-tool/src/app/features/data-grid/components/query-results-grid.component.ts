@@ -8,6 +8,7 @@ import {
   GridApi
 } from 'ag-grid-community';
 import { QueryResult } from '../../../core/models/query.models';
+import { ToastService } from '../../../core/services/toast.service';
 import * as FileSaver from 'file-saver';
 
 /**
@@ -43,17 +44,20 @@ import * as FileSaver from 'file-saver';
         </div>
 
         <div class="grid-actions">
-          <button class="btn btn-secondary" (click)="exportToCsv()">
-            Export CSV
+          <button class="btn btn-secondary" (click)="copyAsJSON()" title="Copy all data as JSON">
+            📋 Copy as JSON
           </button>
-          <button class="btn btn-secondary" (click)="exportToExcel()">
-            Export Excel
+          <button class="btn btn-secondary" (click)="copyAsCSV()" title="Copy all data as CSV">
+            📋 Copy as CSV
+          </button>
+          <button class="btn btn-secondary" (click)="exportToCsv()">
+            💾 Export CSV
           </button>
           <button class="btn btn-secondary" (click)="autoSizeAll()">
-            Auto-size Columns
+            ↔️ Auto-size
           </button>
           <button class="btn btn-secondary" (click)="clearFilters()">
-            Clear Filters
+            🔍 Clear Filters
           </button>
         </div>
       </div>
@@ -181,6 +185,8 @@ import * as FileSaver from 'file-saver';
   `]
 })
 export class QueryResultsGridComponent {
+  private toast = inject(ToastService);
+
   // Angular 19 signals for reactive state
   rowData = signal<any[]>([]);
   columnDefs = signal<ColDef[]>([]);
@@ -404,6 +410,69 @@ export class QueryResultsGridComponent {
 
     this.gridApi.setFilterModel(null);
     console.log('[QueryResultsGrid] Cleared filters');
+  }
+
+  /**
+   * Copy data as JSON to clipboard
+   */
+  async copyAsJSON(): Promise<void> {
+    const data = this.rowData();
+
+    if (data.length === 0) {
+      this.toast.warning('No data to copy');
+      return;
+    }
+
+    try {
+      const jsonString = JSON.stringify(data, null, 2);
+      await navigator.clipboard.writeText(jsonString);
+      this.toast.success(`Copied ${data.length} rows as JSON to clipboard!`);
+      console.log('[QueryResultsGrid] Copied as JSON');
+    } catch (error) {
+      this.toast.error('Failed to copy to clipboard');
+      console.error('[QueryResultsGrid] Copy failed:', error);
+    }
+  }
+
+  /**
+   * Copy data as CSV to clipboard
+   */
+  async copyAsCSV(): Promise<void> {
+    const data = this.rowData();
+
+    if (data.length === 0) {
+      this.toast.warning('No data to copy');
+      return;
+    }
+
+    try {
+      // Get column headers
+      const columns = this.columnDefs().map(col => col.field || '');
+
+      // Create CSV header
+      const csvHeader = columns.join(',');
+
+      // Create CSV rows
+      const csvRows = data.map(row => {
+        return columns.map(col => {
+          const value = row[col];
+          // Escape values with commas or quotes
+          if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value ?? '';
+        }).join(',');
+      });
+
+      const csv = [csvHeader, ...csvRows].join('\n');
+
+      await navigator.clipboard.writeText(csv);
+      this.toast.success(`Copied ${data.length} rows as CSV to clipboard!`);
+      console.log('[QueryResultsGrid] Copied as CSV');
+    } catch (error) {
+      this.toast.error('Failed to copy to clipboard');
+      console.error('[QueryResultsGrid] Copy failed:', error);
+    }
   }
 
   /**
