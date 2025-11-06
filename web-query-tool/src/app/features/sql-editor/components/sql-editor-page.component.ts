@@ -22,23 +22,19 @@ import { QueryResult } from '../../../core/models/query.models';
   ],
   template: `
     <div class="sql-editor-page">
-      <!-- Modern Header with Gradient -->
-      <header class="page-header">
+      <!-- Page Header with Technology Badges -->
+      <div class="page-header">
         <div class="flex items-center justify-between">
           <div>
-            <h1 class="text-xl font-semibold m-0 text-inverse">
-              ⚡ Web Query Tool
-            </h1>
-            <div class="text-sm mt-sm" style="opacity: 0.95;">
-              Enterprise SQL Editor • Monaco Editor × AG Grid × SignalR
-            </div>
+            <h2 class="m-0 text-inverse font-semibold">SQL Editor</h2>
+            <p class="text-secondary text-sm mt-sm m-0">Execute queries with Monaco Editor and real-time SignalR updates</p>
           </div>
-          <div class="flex items-center gap-md">
+          <div class="flex items-center gap-sm">
             <span class="badge badge-success">WAF Compatible</span>
             <span class="badge badge-primary">.NET 9 + Angular 19</span>
           </div>
         </div>
-      </header>
+      </div>
 
       <!-- Main Content Area -->
       <div class="page-content">
@@ -124,16 +120,15 @@ import { QueryResult } from '../../../core/models/query.models';
     .sql-editor-page {
       display: flex;
       flex-direction: column;
-      height: 100vh;
+      height: 100%;
       background: var(--bg-primary);
     }
 
-    /* Modern Header */
+    /* Page Header */
     .page-header {
       padding: var(--spacing-lg) var(--spacing-xl);
-      background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
-      color: white;
-      box-shadow: var(--shadow-md);
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-primary);
     }
 
     /* Content Area */

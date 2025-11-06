@@ -14,6 +14,13 @@ export const routes: Routes = [
       )
   },
   {
+    path: 'connections',
+    loadComponent: () =>
+      import('./features/connection-manager/components/connection-manager.component').then(
+        m => m.ConnectionManagerComponent
+      )
+  },
+  {
     path: '**',
     redirectTo: '/sql-editor'
   }

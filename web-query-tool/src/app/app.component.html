@@ -1,2 +1,36 @@
 <!-- Web Query Tool - Production-Ready Database Query Interface -->
-<router-outlet></router-outlet>
+<div class="app-container">
+  <!-- Modern Navigation Bar -->
+  <nav class="app-nav">
+    <div class="nav-brand">
+      <span class="nav-logo">⚡</span>
+      <span class="nav-title">Web Query Tool</span>
+      <span class="nav-badge badge badge-primary">v1.0</span>
+    </div>
+
+    <div class="nav-menu">
+      <a routerLink="/sql-editor" routerLinkActive="active" class="nav-link">
+        <span class="nav-icon">📝</span>
+        SQL Editor
+      </a>
+      <a routerLink="/connections" routerLinkActive="active" class="nav-link">
+        <span class="nav-icon">🔌</span>
+        Connections
+      </a>
+    </div>
+
+    <div class="nav-actions">
+      <button class="btn btn-sm btn-ghost" title="Settings">
+        ⚙️
+      </button>
+      <button class="btn btn-sm btn-ghost" title="Help">
+        ❓
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="app-main">
+    <router-outlet></router-outlet>
+  </main>
+</div>
