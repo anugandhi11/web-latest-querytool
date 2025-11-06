@@ -5,7 +5,26 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container
 builder.Services.AddControllers();
 
-// Configure CORS (CRITICAL: Required for Angular frontend)
+// Configure SignalR for real-time communication
+builder.Services.AddSignalR(options =>
+{
+    // Enable detailed errors in development
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+
+    // Keep alive interval
+    options.KeepAliveInterval = TimeSpan.FromSeconds(15);
+
+    // Client timeout
+    options.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
+
+    // Handshake timeout
+    options.HandshakeTimeout = TimeSpan.FromSeconds(15);
+
+    // Maximum message size (1MB)
+    options.MaximumReceiveMessageSize = 1024 * 1024;
+});
+
+// Configure CORS (CRITICAL: Required for Angular frontend and SignalR)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngularDev", policy =>
@@ -74,12 +93,16 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
+// Map SignalR Hub
+app.MapHub<WebQueryTool.API.Hubs.QueryExecutionHub>("/hubs/query-execution");
+
 // Health check endpoint
 app.MapGet("/health", () => new
 {
     status = "healthy",
     timestamp = DateTime.UtcNow,
-    version = "1.0.0"
+    version = "1.0.0",
+    signalR = "enabled"
 });
 
 app.Run();

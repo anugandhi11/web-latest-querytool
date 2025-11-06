@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # .NET 9 Backend API
+  api:
+    build:
+      context: ./WebQueryTool
+      dockerfile: Dockerfile
+    container_name: web-query-tool-api
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__PostgreSQL=${POSTGRES_CONNECTION_STRING}
+      - ConnectionStrings__MySQL=${MYSQL_CONNECTION_STRING}
+      - ConnectionStrings__SQLServer=${SQLSERVER_CONNECTION_STRING}
+      - ConnectionStrings__Redshift=${REDSHIFT_CONNECTION_STRING}
+      - Jwt__Key=${JWT_SECRET_KEY}
+      - Jwt__Issuer=WebQueryTool
+      - Jwt__Audience=WebQueryToolClient
+      - Jwt__ExpirationMinutes=60
+    networks:
+      - web-query-tool-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # Angular 19 Frontend
+  frontend:
+    build:
+      context: ./web-query-tool
+      dockerfile: Dockerfile
+    container_name: web-query-tool-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    networks:
+      - web-query-tool-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # Redis (for SignalR backplane in production)
+  redis:
+    image: redis:7-alpine
+    container_name: web-query-tool-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - web-query-tool-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+networks:
+  web-query-tool-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local

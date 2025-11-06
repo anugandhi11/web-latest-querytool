@@ -3,6 +3,7 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { QueryRequest, QueryResult, QueryError } from '../models/query.models';
+import { environment } from '../../../environments/environment';
 
 /**
  * Query Execution Service
@@ -22,8 +23,8 @@ import { QueryRequest, QueryResult, QueryError } from '../models/query.models';
 export class QueryExecutionService {
   private readonly http = inject(HttpClient);
 
-  // TODO: Replace with actual API URL from environment config
-  private readonly apiUrl = 'https://your-api.verisk.com/api/v1';
+  // API URL from environment configuration
+  private readonly apiUrl = environment.apiUrlHttps;
 
   /**
    * Execute SQL query with Base64 encoding (WAF bypass)
