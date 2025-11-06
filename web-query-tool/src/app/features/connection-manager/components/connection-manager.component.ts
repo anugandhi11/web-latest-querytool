@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DatabaseConnection, DatabaseType } from '../../../core/models/query.models';
 import { ConnectionService } from '../../../core/services/connection.service';
+import { ToastService } from '../../../core/services/toast.service';
 
 /**
  * Connection Manager Component
@@ -279,6 +280,7 @@ import { ConnectionService } from '../../../core/services/connection.service';
 })
 export class ConnectionManagerComponent {
   private connectionService = inject(ConnectionService);
+  private toast = inject(ToastService);
 
   // Use shared connection service
   connections = this.connectionService.connections;
@@ -301,16 +303,18 @@ export class ConnectionManagerComponent {
 
   saveConnection(): void {
     if (!this.formData.name || !this.formData.host) {
-      alert('Please fill in all required fields');
+      this.toast.warning('Please fill in all required fields');
       return;
     }
 
     if (this.editingConnection()) {
       // Update existing connection
       this.connectionService.updateConnection(this.editingConnection()!.id, this.formData);
+      this.toast.success(`Connection "${this.formData.name}" updated successfully`);
     } else {
       // Add new connection
       this.connectionService.addConnection(this.formData);
+      this.toast.success(`Connection "${this.formData.name}" added successfully`);
     }
 
     this.closeForm();
@@ -319,22 +323,24 @@ export class ConnectionManagerComponent {
   deleteConnection(conn: DatabaseConnection): void {
     if (!confirm(`Delete connection "${conn.name}"?`)) return;
     this.connectionService.deleteConnection(conn.id);
+    this.toast.success(`Connection "${conn.name}" deleted successfully`);
   }
 
   setActive(conn: DatabaseConnection): void {
     this.connectionService.setActiveConnection(conn.id);
+    this.toast.success(`Switched to "${conn.name}" connection`);
   }
 
   async testConnection(conn: DatabaseConnection): Promise<void> {
     try {
       const result = await this.connectionService.testConnection(conn);
       if (result) {
-        alert(`✅ Connection successful!\n\nConnected to: ${conn.name}\nHost: ${conn.host}:${conn.port}`);
+        this.toast.success(`Connection successful! Connected to ${conn.name} at ${conn.host}:${conn.port}`);
       } else {
-        alert(`❌ Connection failed!\n\nCould not connect to: ${conn.name}`);
+        this.toast.error(`Connection failed! Could not connect to ${conn.name}`);
       }
     } catch (error) {
-      alert(`❌ Connection error!\n\n${error}`);
+      this.toast.error(`Connection error: ${error}`);
     }
   }
 

@@ -17,6 +17,8 @@ import * as monaco from 'monaco-editor';
 import 'monaco-sql-languages';
 import { QueryExecutionService } from '../../../core/services/query-execution.service';
 import { DatabaseConnection, QueryResult } from '../../../core/models/query.models';
+import { ToastService } from '../../../core/services/toast.service';
+import { QueryHistoryService } from '../../../core/services/query-history.service';
 
 /**
  * Monaco SQL Editor Component
@@ -108,6 +110,8 @@ export class MonacoSqlEditorComponent implements AfterViewInit, OnDestroy {
   @Output() queryError = new EventEmitter<Error>();
 
   private readonly queryService = inject(QueryExecutionService);
+  private readonly toast = inject(ToastService);
+  private readonly historyService = inject(QueryHistoryService);
 
   private editor: monaco.editor.IStandaloneCodeEditor | null = null;
 
@@ -229,7 +233,15 @@ SELECT * FROM `;
       }
     );
 
-    console.log('[MonacoSqlEditor] Keyboard shortcuts registered');
+    // Shift+Alt+F: Format SQL
+    this.editor.addCommand(
+      monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF,
+      () => {
+        this.formatQuery();
+      }
+    );
+
+    console.log('[MonacoSqlEditor] Keyboard shortcuts registered: Ctrl+Enter, Ctrl+/, Shift+Alt+F');
   }
 
   /**
@@ -243,14 +255,14 @@ SELECT * FROM `;
     const sql = this.getSelectedOrAllText();
 
     if (!sql.trim()) {
-      alert('Please enter a SQL query');
+      this.toast.warning('Please enter a SQL query');
       return;
     }
 
     // Validate query
     const validation = this.queryService.validateQuery(sql);
     if (!validation.valid) {
-      alert(validation.error);
+      this.toast.error(validation.error || 'Invalid SQL query');
       return;
     }
 
@@ -268,12 +280,32 @@ SELECT * FROM `;
         this.statusMessage.set(
           `Success: ${result.totalRows} rows in ${result.executionTimeMs}ms`
         );
+        this.toast.success(`Query executed successfully! ${result.totalRows} rows returned in ${result.executionTimeMs}ms`);
         this.queryExecuted.emit(result);
+
+        // Save to query history
+        this.historyService.addToHistory({
+          sql,
+          executionTime: result.executionTimeMs,
+          rowCount: result.totalRows,
+          connectionId: this.connectionId,
+          status: 'success'
+        });
       }
     } catch (error) {
       console.error('[MonacoSqlEditor] Query execution failed:', error);
       this.statusMessage.set('Query failed');
+      this.toast.error(`Query execution failed: ${(error as any).message || 'Unknown error'}`);
       this.queryError.emit(error as Error);
+
+      // Save failed query to history
+      this.historyService.addToHistory({
+        sql,
+        executionTime: 0,
+        rowCount: 0,
+        connectionId: this.connectionId,
+        status: 'error'
+      });
     } finally {
       this.isExecuting.set(false);
     }

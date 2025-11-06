@@ -3,8 +3,10 @@ import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { MonacoSqlEditorComponent } from './monaco-sql-editor.component';
 import { QueryResultsGridComponent } from '../../data-grid/components/query-results-grid.component';
+import { QueryHistoryPanelComponent } from './query-history-panel.component';
 import { QueryResult } from '../../../core/models/query.models';
 import { ConnectionService } from '../../../core/services/connection.service';
+import { ToastService } from '../../../core/services/toast.service';
 
 /**
  * SQL Editor Page Component
@@ -21,7 +23,8 @@ import { ConnectionService } from '../../../core/services/connection.service';
     CommonModule,
     RouterLink,
     MonacoSqlEditorComponent,
-    QueryResultsGridComponent
+    QueryResultsGridComponent,
+    QueryHistoryPanelComponent
   ],
   template: `
     <div class="sql-editor-page">
@@ -46,15 +49,29 @@ import { ConnectionService } from '../../../core/services/connection.service';
                 ➕ Add Connection
               </a>
             }
+            <button class="btn btn-sm btn-secondary" (click)="toggleHistory()">
+              {{ showHistory() ? '✕ Hide' : '📜 Show' }} History
+            </button>
             <span class="badge badge-success">WAF Compatible</span>
             <span class="badge badge-primary">.NET 9 + Angular 19</span>
           </div>
         </div>
       </div>
 
-      <!-- Main Content Area -->
-      <div class="page-content">
-        <!-- SQL Editor Card -->
+      <!-- Main Content Area with Sidebar Layout -->
+      <div class="page-content" [class.with-sidebar]="showHistory()">
+        <!-- History Sidebar -->
+        @if (showHistory()) {
+          <aside class="history-sidebar">
+            <app-query-history-panel
+              (querySelected)="onQuerySelected($event)">
+            </app-query-history-panel>
+          </aside>
+        }
+
+        <!-- Main Editor Section -->
+        <div class="editor-section">
+          <!-- SQL Editor Card -->
         <section class="card editor-card">
           <div class="card-header">
             <div class="flex items-center justify-between">
@@ -116,6 +133,8 @@ import { ConnectionService } from '../../../core/services/connection.service';
             </app-query-results-grid>
           </div>
         </section>
+        </div>
+        <!-- End Editor Section -->
       </div>
 
       <!-- Modern Status Bar -->
@@ -175,9 +194,31 @@ import { ConnectionService } from '../../../core/services/connection.service';
     .page-content {
       flex: 1;
       display: flex;
-      flex-direction: column;
       gap: var(--spacing-lg);
       padding: var(--spacing-lg);
+      overflow: hidden;
+    }
+
+    .page-content.with-sidebar {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: var(--spacing-lg);
+    }
+
+    /* History Sidebar */
+    .history-sidebar {
+      min-width: 320px;
+      max-width: 400px;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* Editor Section */
+    .editor-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-lg);
       overflow: hidden;
     }
 
@@ -219,9 +260,13 @@ import { ConnectionService } from '../../../core/services/connection.service';
 })
 export class SqlEditorPageComponent {
   private connectionService = inject(ConnectionService);
+  private toast = inject(ToastService);
 
   @ViewChild(QueryResultsGridComponent)
   resultsGrid!: QueryResultsGridComponent;
+
+  @ViewChild(MonacoSqlEditorComponent)
+  sqlEditor!: MonacoSqlEditorComponent;
 
   // Use shared connection service
   activeConnection = this.connectionService.activeConnection;
@@ -229,6 +274,7 @@ export class SqlEditorPageComponent {
   // Component state using Angular 19 signals
   queryStatus = signal<string>('Ready');
   lastQuerySuccess = signal<boolean>(false);
+  showHistory = signal<boolean>(false);
 
   /**
    * Handle successful query execution
@@ -254,7 +300,22 @@ export class SqlEditorPageComponent {
     this.lastQuerySuccess.set(false);
     this.queryStatus.set('Query failed');
 
-    // Show error notification
-    alert(`Query execution failed: ${error.error || error.message}`);
+    // Note: Toast notification already shown in Monaco Editor component
+  }
+
+  /**
+   * Toggle query history panel
+   */
+  toggleHistory(): void {
+    this.showHistory.set(!this.showHistory());
+  }
+
+  /**
+   * Load query from history into editor
+   */
+  onQuerySelected(sql: string): void {
+    if (this.sqlEditor) {
+      this.sqlEditor.setSQL(sql);
+    }
   }
 }
