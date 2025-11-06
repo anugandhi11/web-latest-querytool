@@ -5,8 +5,7 @@ import {
   ColDef,
   GridReadyEvent,
   GridOptions,
-  GridApi,
-  ColumnApi
+  GridApi
 } from 'ag-grid-community';
 import { QueryResult } from '../../../core/models/query.models';
 import * as FileSaver from 'file-saver';
@@ -199,13 +198,6 @@ export class QueryResultsGridComponent {
     filter: true,
     resizable: true,
     editable: false,
-
-    // Performance optimizations
-    enableCellTextSelection: true,
-    suppressKeyboardEvent: (params) => {
-      // Allow Ctrl+C for copying
-      return !!(params.event.ctrlKey && params.event.key === 'c');
-    },
 
     // Column width
     minWidth: 100,

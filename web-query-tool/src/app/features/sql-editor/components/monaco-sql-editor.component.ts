@@ -13,7 +13,8 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import * as monaco from 'monaco-editor';
-import { setupLanguageFeatures, LanguageIdEnum } from 'monaco-sql-languages';
+// Import monaco-sql-languages to register SQL language support
+import 'monaco-sql-languages';
 import { QueryExecutionService } from '../../../core/services/query-execution.service';
 import { DatabaseConnection, QueryResult } from '../../../core/models/query.models';
 
@@ -36,22 +37,45 @@ import { DatabaseConnection, QueryResult } from '../../../core/models/query.mode
   imports: [CommonModule],
   template: `
     <div class="editor-wrapper">
-      <div class="editor-toolbar">
-        <button class="btn btn-primary" (click)="executeQuery()" [disabled]="isExecuting()">
-          {{ isExecuting() ? 'Executing...' : 'Run Query' }}
-          <span class="shortcut">Ctrl+Enter</span>
-        </button>
-        <button class="btn btn-secondary" (click)="formatQuery()">
-          Format SQL
-        </button>
-        <button class="btn btn-secondary" (click)="clearEditor()">
-          Clear
-        </button>
-        <div class="status-indicator" [class.executing]="isExecuting()">
-          {{ statusMessage() }}
+      <!-- Modern Toolbar -->
+      <div class="toolbar">
+        <div class="toolbar-group">
+          <button class="btn btn-success" (click)="executeQuery()" [disabled]="isExecuting()">
+            @if (isExecuting()) {
+              <span class="spinner"></span>
+              Executing...
+            } @else {
+              ▶ Run Query
+            }
+            <span class="badge badge-gray text-xs">Ctrl+Enter</span>
+          </button>
+          <button class="btn btn-secondary" (click)="formatQuery()">
+            ✨ Format SQL
+          </button>
+          <button class="btn btn-ghost" (click)="clearEditor()">
+            🗑️ Clear
+          </button>
+        </div>
+
+        <div class="toolbar-separator"></div>
+
+        <div class="status-indicator flex items-center gap-sm">
+          @if (isExecuting()) {
+            <span class="badge badge-primary">
+              <span class="spinner"></span>
+              {{ statusMessage() }}
+            </span>
+          } @else {
+            <span class="badge" [class.badge-success]="statusMessage().includes('Success')"
+                  [class.badge-gray]="!statusMessage().includes('Success')">
+              {{ statusMessage() }}
+            </span>
+          }
         </div>
       </div>
-      <div #editorContainer class="editor-container"></div>
+
+      <!-- Monaco Editor Container -->
+      <div #editorContainer class="monaco-editor-container"></div>
     </div>
   `,
   styles: [`
@@ -60,74 +84,16 @@ import { DatabaseConnection, QueryResult } from '../../../core/models/query.mode
       flex-direction: column;
       height: 100%;
       width: 100%;
-      border: 1px solid #ddd;
-      border-radius: 4px;
       overflow: hidden;
-    }
-
-    .editor-toolbar {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      background: #f5f5f5;
-      border-bottom: 1px solid #ddd;
-    }
-
-    .btn {
-      padding: 6px 12px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      background: white;
-      cursor: pointer;
-      font-size: 14px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .btn:hover:not(:disabled) {
-      background: #f0f0f0;
-    }
-
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .btn-primary {
-      background: #0066cc;
-      color: white;
-      border-color: #0055aa;
-    }
-
-    .btn-primary:hover:not(:disabled) {
-      background: #0055aa;
-    }
-
-    .shortcut {
-      font-size: 11px;
-      opacity: 0.8;
-      padding: 2px 4px;
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 3px;
-    }
-
-    .status-indicator {
-      margin-left: auto;
-      font-size: 13px;
-      color: #666;
-    }
-
-    .status-indicator.executing {
-      color: #0066cc;
-      font-weight: 500;
     }
 
     .editor-container {
       flex: 1;
-      height: 600px;
       min-height: 400px;
+    }
+
+    .status-indicator {
+      margin-left: auto;
     }
   `]
 })
@@ -164,19 +130,8 @@ export class MonacoSqlEditorComponent implements AfterViewInit, OnDestroy {
    * DON'T reinvent this - Monaco is battle-tested by millions
    */
   private initializeMonacoEditor(): void {
-    // Configure SQL language support based on database type
-    const languageId = this.getLanguageId();
-
-    // Setup SQL IntelliSense with monaco-sql-languages
-    setupLanguageFeatures(languageId, {
-      completionItems: {
-        enable: true
-      },
-      languageFormatOptions: {
-        indentWidth: 2,
-        tabSize: 2
-      }
-    });
+    // monaco-sql-languages is already imported and registered automatically
+    // Just create the editor with the correct language ID
 
     // Create editor instance
     this.editor = monaco.editor.create(this.editorContainer.nativeElement, {
@@ -217,23 +172,7 @@ export class MonacoSqlEditorComponent implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Get Language ID for monaco-sql-languages
-   */
-  private getLanguageId(): LanguageIdEnum {
-    switch (this.databaseType) {
-      case 'PostgreSQL':
-        return LanguageIdEnum.PG;
-      case 'MySQL':
-        return LanguageIdEnum.MYSQL;
-      case 'SQLServer':
-        return LanguageIdEnum.MSSQL;
-      default:
-        return LanguageIdEnum.PG;
-    }
-  }
-
-  /**
-   * Get Monaco language string
+   * Get Monaco language string for SQL dialect
    */
   private getMonacoLanguage(): string {
     switch (this.databaseType) {
@@ -242,7 +181,9 @@ export class MonacoSqlEditorComponent implements AfterViewInit, OnDestroy {
       case 'MySQL':
         return 'mysql';
       case 'SQLServer':
-        return 'mssql';
+        return 'sql'; // Use standard SQL for SQL Server
+      case 'Redshift':
+        return 'pgsql'; // Redshift is PostgreSQL-compatible
       default:
         return 'sql';
     }

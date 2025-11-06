@@ -39,7 +39,16 @@
             "styles": [
               "src/styles.scss"
             ],
-            "scripts": []
+            "scripts": [],
+            "externalDependencies": [
+              "monaco-editor"
+            ],
+            "loader": {
+              ".ttf": "file"
+            },
+            "optimization": {
+              "fonts": false
+            }
           },
           "configurations": {
             "production": {

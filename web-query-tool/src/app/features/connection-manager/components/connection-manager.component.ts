@@ -20,118 +20,176 @@ import { DatabaseConnection, DatabaseType } from '../../../core/models/query.mod
   imports: [CommonModule, FormsModule],
   template: `
     <div class="connection-manager">
-      <div class="manager-header">
-        <h2>Database Connections</h2>
+      <!-- Modern Header -->
+      <div class="flex items-center justify-between mb-lg">
+        <div>
+          <h2 class="m-0 text-inverse font-semibold">🔌 Database Connections</h2>
+          <p class="text-secondary text-sm mt-sm m-0">Manage your database connections securely</p>
+        </div>
         <button class="btn btn-primary" (click)="showAddConnection()">
-          + Add Connection
+          ➕ Add Connection
         </button>
       </div>
 
-      <!-- Connection List -->
-      <div class="connections-list">
+      <!-- Connection List Grid -->
+      <div class="connections-grid">
         @if (connections().length === 0) {
-          <div class="no-connections">
-            <p>No database connections configured</p>
-            <button class="btn btn-primary" (click)="showAddConnection()">
-              Add Your First Connection
-            </button>
+          <div class="card card-hover" style="grid-column: 1 / -1;">
+            <div class="card-body" style="text-align: center; padding: var(--spacing-2xl);">
+              <div style="font-size: 48px; margin-bottom: var(--spacing-md); opacity: 0.5;">💾</div>
+              <h3 class="text-inverse">No Connections Yet</h3>
+              <p class="text-secondary mb-lg">Add your first database connection to get started</p>
+              <button class="btn btn-primary btn-lg" (click)="showAddConnection()">
+                ➕ Add Your First Connection
+              </button>
+            </div>
           </div>
         } @else {
           @for (conn of connections(); track conn.id) {
-            <div class="connection-card" [class.active]="conn.isActive">
-              <div class="connection-header">
-                <div class="connection-type" [class]="conn.type.toLowerCase()">
-                  {{ conn.type }}
+            <div class="card card-hover connection-card"
+                 [class.connection-active]="conn.isActive">
+              <!-- Card Header with Database Icon -->
+              <div class="card-header">
+                <div class="flex items-center gap-sm">
+                  <div class="db-icon" [class]="'db-' + conn.type.toLowerCase()">
+                    @switch (conn.type) {
+                      @case ('PostgreSQL') { 🐘 }
+                      @case ('MySQL') { 🐬 }
+                      @case ('SQLServer') { 🗄️ }
+                      @case ('Redshift') { ☁️ }
+                    }
+                  </div>
+                  <div class="flex-1">
+                    <h3 class="card-title m-0 text-sm">{{ conn.name }}</h3>
+                    <span class="badge badge-sm"
+                          [class]="'badge-' + conn.type.toLowerCase()">
+                      {{ conn.type }}
+                    </span>
+                  </div>
+                  @if (conn.isActive) {
+                    <span class="badge badge-success">✓ Active</span>
+                  }
                 </div>
-                <div class="connection-name">{{ conn.name }}</div>
               </div>
 
-              <div class="connection-details">
-                <div class="detail">
-                  <span class="label">Host:</span>
-                  <span class="value">{{ conn.host }}:{{ conn.port }}</span>
-                </div>
-                <div class="detail">
-                  <span class="label">Database:</span>
-                  <span class="value">{{ conn.database }}</span>
-                </div>
-                <div class="detail">
-                  <span class="label">Username:</span>
-                  <span class="value">{{ conn.username }}</span>
+              <!-- Connection Details -->
+              <div class="card-body">
+                <div class="connection-details">
+                  <div class="detail-row">
+                    <span class="text-secondary text-xs">🌐 Host</span>
+                    <span class="text-primary text-sm font-medium truncate">{{ conn.host }}:{{ conn.port }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="text-secondary text-xs">💾 Database</span>
+                    <span class="text-primary text-sm font-medium truncate">{{ conn.database }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="text-secondary text-xs">👤 Username</span>
+                    <span class="text-primary text-sm font-medium truncate">{{ conn.username }}</span>
+                  </div>
                 </div>
               </div>
 
-              <div class="connection-actions">
-                <button class="btn btn-sm btn-test" (click)="testConnection(conn)">
-                  Test
-                </button>
-                <button class="btn btn-sm btn-activate" (click)="setActive(conn)"
-                        [disabled]="conn.isActive">
-                  {{ conn.isActive ? 'Active' : 'Activate' }}
-                </button>
-                <button class="btn btn-sm btn-edit" (click)="editConnection(conn)">
-                  Edit
-                </button>
-                <button class="btn btn-sm btn-delete" (click)="deleteConnection(conn)">
-                  Delete
-                </button>
+              <!-- Card Actions -->
+              <div class="card-footer">
+                <div class="flex gap-xs">
+                  <button class="btn btn-sm btn-ghost" (click)="testConnection(conn)" title="Test Connection">
+                    🔌 Test
+                  </button>
+                  <button class="btn btn-sm"
+                          [class.btn-success]="!conn.isActive"
+                          [class.btn-secondary]="conn.isActive"
+                          (click)="setActive(conn)"
+                          [disabled]="conn.isActive"
+                          title="Set as active connection">
+                    {{ conn.isActive ? '✓ Active' : 'Activate' }}
+                  </button>
+                  <button class="btn btn-sm btn-secondary" (click)="editConnection(conn)" title="Edit Connection">
+                    ✏️
+                  </button>
+                  <button class="btn btn-sm btn-danger" (click)="deleteConnection(conn)" title="Delete Connection">
+                    🗑️
+                  </button>
+                </div>
               </div>
             </div>
           }
         }
       </div>
 
-      <!-- Add/Edit Connection Form -->
+      <!-- Modern Modal Form -->
       @if (showForm()) {
-        <div class="connection-form-overlay" (click)="closeForm()">
-          <div class="connection-form" (click)="$event.stopPropagation()">
-            <h3>{{ editingConnection() ? 'Edit Connection' : 'Add Connection' }}</h3>
-
-            <div class="form-group">
-              <label>Connection Name</label>
-              <input type="text" [(ngModel)]="formData.name" placeholder="My Database">
+        <div class="modal-backdrop" (click)="closeForm()">
+          <div class="modal modal-md" (click)="$event.stopPropagation()">
+            <!-- Modal Header -->
+            <div class="card-header">
+              <h3 class="card-title m-0">
+                {{ editingConnection() ? '✏️ Edit Connection' : '➕ New Connection' }}
+              </h3>
             </div>
 
-            <div class="form-group">
-              <label>Database Type</label>
-              <select [(ngModel)]="formData.type">
-                <option value="PostgreSQL">PostgreSQL</option>
-                <option value="MySQL">MySQL</option>
-                <option value="SQLServer">SQL Server</option>
-                <option value="Redshift">AWS Redshift</option>
-              </select>
+            <!-- Modal Body -->
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label">Connection Name *</label>
+                <input class="form-input" type="text" [(ngModel)]="formData.name"
+                       placeholder="My Production Database">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Database Type *</label>
+                <select class="form-select" [(ngModel)]="formData.type">
+                  <option value="PostgreSQL">🐘 PostgreSQL</option>
+                  <option value="MySQL">🐬 MySQL</option>
+                  <option value="SQLServer">🗄️ SQL Server</option>
+                  <option value="Redshift">☁️ AWS Redshift</option>
+                </select>
+              </div>
+
+              <div class="flex gap-md">
+                <div class="form-group" style="flex: 2;">
+                  <label class="form-label">Host *</label>
+                  <input class="form-input" type="text" [(ngModel)]="formData.host"
+                         placeholder="localhost">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                  <label class="form-label">Port *</label>
+                  <input class="form-input" type="number" [(ngModel)]="formData.port"
+                         placeholder="5432">
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Database Name *</label>
+                <input class="form-input" type="text" [(ngModel)]="formData.database"
+                       placeholder="mydb">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Username *</label>
+                <input class="form-input" type="text" [(ngModel)]="formData.username"
+                       placeholder="postgres">
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Password *</label>
+                <input class="form-input" type="password" [(ngModel)]="formData.password"
+                       placeholder="••••••••">
+              </div>
+
+              <div class="alert alert-info">
+                <strong>🔒 Security Note:</strong> Connections are stored securely in your browser's local storage.
+              </div>
             </div>
 
-            <div class="form-group">
-              <label>Host</label>
-              <input type="text" [(ngModel)]="formData.host" placeholder="localhost">
-            </div>
-
-            <div class="form-group">
-              <label>Port</label>
-              <input type="number" [(ngModel)]="formData.port" placeholder="5432">
-            </div>
-
-            <div class="form-group">
-              <label>Database</label>
-              <input type="text" [(ngModel)]="formData.database" placeholder="mydb">
-            </div>
-
-            <div class="form-group">
-              <label>Username</label>
-              <input type="text" [(ngModel)]="formData.username" placeholder="postgres">
-            </div>
-
-            <div class="form-group">
-              <label>Password</label>
-              <input type="password" [(ngModel)]="formData.password" placeholder="••••••••">
-            </div>
-
-            <div class="form-actions">
-              <button class="btn btn-secondary" (click)="closeForm()">Cancel</button>
-              <button class="btn btn-primary" (click)="saveConnection()">
-                {{ editingConnection() ? 'Update' : 'Add' }} Connection
-              </button>
+            <!-- Modal Footer -->
+            <div class="card-footer">
+              <div class="flex justify-end gap-sm">
+                <button class="btn btn-secondary" (click)="closeForm()">Cancel</button>
+                <button class="btn btn-primary" (click)="saveConnection()">
+                  {{ editingConnection() ? '💾 Update' : '➕ Add' }} Connection
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -140,219 +198,81 @@ import { DatabaseConnection, DatabaseType } from '../../../core/models/query.mod
   `,
   styles: [`
     .connection-manager {
-      padding: 20px;
-      max-width: 1200px;
+      padding: var(--spacing-xl);
+      max-width: 1400px;
       margin: 0 auto;
     }
 
-    .manager-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
-
-    .manager-header h2 {
-      margin: 0;
-      font-size: 24px;
-      color: #333;
-    }
-
-    .connections-list {
+    /* Connections Grid */
+    .connections-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-      gap: 20px;
+      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      gap: var(--spacing-lg);
     }
 
-    .no-connections {
-      grid-column: 1 / -1;
-      text-align: center;
-      padding: 60px 20px;
-      background: #f9f9f9;
-      border-radius: 8px;
-    }
-
+    /* Connection Card */
     .connection-card {
-      background: white;
-      border: 2px solid #e0e0e0;
-      border-radius: 8px;
-      padding: 20px;
-      transition: all 0.3s;
+      transition: transform var(--transition-base), box-shadow var(--transition-base);
     }
 
-    .connection-card.active {
-      border-color: #4CAF50;
-      box-shadow: 0 0 10px rgba(76, 175, 80, 0.2);
+    .connection-card:hover {
+      transform: translateY(-2px);
     }
 
-    .connection-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 15px;
+    .connection-active {
+      border: 2px solid var(--success-500) !important;
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.2) !important;
     }
 
-    .connection-type {
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-    }
-
-    .connection-type.postgresql {
-      background: #336791;
-      color: white;
-    }
-
-    .connection-type.mysql {
-      background: #00758F;
-      color: white;
-    }
-
-    .connection-type.sqlserver {
-      background: #CC2927;
-      color: white;
-    }
-
-    .connection-type.redshift {
-      background: #FF9900;
-      color: white;
-    }
-
-    .connection-name {
-      font-size: 18px;
-      font-weight: 600;
-      color: #333;
-    }
-
-    .connection-details {
-      margin-bottom: 15px;
-    }
-
-    .detail {
-      display: flex;
-      margin-bottom: 8px;
-      font-size: 14px;
-    }
-
-    .detail .label {
-      font-weight: 500;
-      color: #666;
-      width: 80px;
-    }
-
-    .detail .value {
-      color: #333;
-    }
-
-    .connection-actions {
-      display: flex;
-      gap: 8px;
-    }
-
-    .btn {
-      padding: 8px 16px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-      transition: all 0.3s;
-    }
-
-    .btn-primary {
-      background: #2196F3;
-      color: white;
-    }
-
-    .btn-secondary {
-      background: #9E9E9E;
-      color: white;
-    }
-
-    .btn-sm {
-      padding: 6px 12px;
-      font-size: 13px;
-    }
-
-    .btn-test {
-      background: #FFC107;
-      color: white;
-    }
-
-    .btn-activate {
-      background: #4CAF50;
-      color: white;
-    }
-
-    .btn-activate:disabled {
-      background: #C8E6C9;
-      cursor: not-allowed;
-    }
-
-    .btn-edit {
-      background: #2196F3;
-      color: white;
-    }
-
-    .btn-delete {
-      background: #F44336;
-      color: white;
-    }
-
-    .connection-form-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0,0,0,0.5);
+    /* Database Icon */
+    .db-icon {
+      width: 40px;
+      height: 40px;
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 1000;
+      font-size: 24px;
+      border-radius: var(--radius-md);
+      background: var(--bg-tertiary);
     }
 
-    .connection-form {
-      background: white;
-      padding: 30px;
-      border-radius: 8px;
-      width: 500px;
-      max-width: 90vw;
-      max-height: 90vh;
-      overflow-y: auto;
-    }
+    .db-icon.db-postgresql { background: rgba(51, 103, 145, 0.2); }
+    .db-icon.db-mysql { background: rgba(0, 117, 143, 0.2); }
+    .db-icon.db-sqlserver { background: rgba(204, 41, 39, 0.2); }
+    .db-icon.db-redshift { background: rgba(255, 153, 0, 0.2); }
 
-    .connection-form h3 {
-      margin-top: 0;
-      margin-bottom: 20px;
-    }
+    /* Badge Colors for Database Types */
+    .badge-postgresql { background: rgba(51, 103, 145, 0.2); color: #5a9fd4; }
+    .badge-mysql { background: rgba(0, 117, 143, 0.2); color: #00a9d0; }
+    .badge-sqlserver { background: rgba(204, 41, 39, 0.2); color: #e74c3c; }
+    .badge-redshift { background: rgba(255, 153, 0, 0.2); color: #ff9900; }
+    .badge-sm { font-size: 0.7rem; padding: 0.15rem 0.5rem; }
 
-    .form-group {
-      margin-bottom: 15px;
-    }
-
-    .form-group label {
-      display: block;
-      margin-bottom: 5px;
-      font-weight: 500;
-      color: #333;
-    }
-
-    .form-group input,
-    .form-group select {
-      width: 100%;
-      padding: 8px 12px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 14px;
-    }
-
-    .form-actions {
+    /* Connection Details */
+    .connection-details {
       display: flex;
-      gap: 10px;
-      justify-content: flex-end;
-      margin-top: 20px;
+      flex-direction: column;
+      gap: var(--spacing-sm);
+    }
+
+    .detail-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      padding: var(--spacing-sm);
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-sm);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .connections-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .connection-manager {
+        padding: var(--spacing-md);
+      }
     }
   `]
 })
