@@ -28,14 +28,30 @@ import { ToastService } from '../../../core/services/toast.service';
       <!-- Header -->
       <div class="browser-header">
         <h3 class="browser-title">Database</h3>
-        <button
-          class="btn btn-sm btn-ghost"
-          (click)="refreshSchema()"
-          [disabled]="isLoading()"
-          title="Refresh Schema">
-          {{ isLoading() ? '⟳' : '🔄' }}
-        </button>
+        <div class="header-actions">
+          <button
+            class="btn btn-sm btn-ghost"
+            (click)="toggleAutoExecute()"
+            [class.active]="autoExecute()"
+            title="Auto-execute queries on table selection">
+            {{ autoExecute() ? '⚡' : '⚡' }}
+          </button>
+          <button
+            class="btn btn-sm btn-ghost"
+            (click)="refreshSchema()"
+            [disabled]="isLoading()"
+            title="Refresh Schema">
+            {{ isLoading() ? '⟳' : '🔄' }}
+          </button>
+        </div>
       </div>
+
+      <!-- Auto-execute Status -->
+      @if (autoExecute()) {
+        <div class="auto-execute-banner">
+          ⚡ Auto-execute enabled - Double-click table to run query
+        </div>
+      }
 
       <!-- Search Bar -->
       <div class="search-box">
@@ -105,6 +121,39 @@ import { ToastService } from '../../../core/services/toast.service';
                                 @if (table.rowCount !== undefined) {
                                   <span class="node-count">{{ formatRowCount(table.rowCount) }}</span>
                                 }
+                                <!-- Quick Actions -->
+                                <div class="table-actions">
+                                  <button
+                                    class="action-btn"
+                                    (click)="onPreviewTable(table, $event)"
+                                    title="Preview (10 rows)">
+                                    👁️
+                                  </button>
+                                  <button
+                                    class="action-btn"
+                                    (click)="generateInsert(table, $event)"
+                                    title="Generate INSERT">
+                                    ➕
+                                  </button>
+                                  <button
+                                    class="action-btn"
+                                    (click)="generateUpdate(table, $event)"
+                                    title="Generate UPDATE">
+                                    ✏️
+                                  </button>
+                                  <button
+                                    class="action-btn"
+                                    (click)="generateDelete(table, $event)"
+                                    title="Generate DELETE">
+                                    🗑️
+                                  </button>
+                                  <button
+                                    class="action-btn"
+                                    (click)="describeTable(table, $event)"
+                                    title="Describe Table">
+                                    ℹ️
+                                  </button>
+                                </div>
                               </div>
 
                               <!-- Columns -->
@@ -177,6 +226,25 @@ import { ToastService } from '../../../core/services/toast.service';
       font-size: 0.875rem;
       font-weight: 600;
       color: var(--text-inverse);
+    }
+
+    .header-actions {
+      display: flex;
+      gap: var(--spacing-xs);
+    }
+
+    .header-actions .btn.active {
+      background: var(--primary-600);
+      color: white;
+    }
+
+    .auto-execute-banner {
+      padding: var(--spacing-xs) var(--spacing-sm);
+      background: rgba(33, 150, 243, 0.1);
+      border-bottom: 1px solid rgba(33, 150, 243, 0.3);
+      font-size: 0.75rem;
+      color: var(--primary-300);
+      text-align: center;
     }
 
     .search-box {
@@ -301,6 +369,31 @@ import { ToastService } from '../../../core/services/toast.service';
       font-style: italic;
     }
 
+    .table-actions {
+      display: none;
+      gap: 2px;
+      margin-left: auto;
+    }
+
+    .node-header:hover .table-actions {
+      display: flex;
+    }
+
+    .action-btn {
+      padding: 2px 4px;
+      font-size: 0.7rem;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .action-btn:hover {
+      background: var(--bg-hover);
+      transform: scale(1.1);
+    }
+
     .loading-state,
     .error-state,
     .empty-state {
@@ -329,6 +422,8 @@ export class SchemaBrowserComponent implements OnInit {
 
   @Output() tableSelected = new EventEmitter<TableInfo>();
   @Output() viewSelected = new EventEmitter<ViewInfo>();
+  @Output() executeQuery = new EventEmitter<string>();
+  @Output() previewTable = new EventEmitter<TableInfo>();
 
   private schemaBrowser = inject(SchemaBrowserService);
   private toast = inject(ToastService);
@@ -340,6 +435,7 @@ export class SchemaBrowserComponent implements OnInit {
   searchQuery = '';
   expandedNodes = new Set<string>();
   selectedTable = signal<TableInfo | null>(null);
+  autoExecute = signal<boolean>(false); // Toggle for auto-execute on table selection
 
   // Computed filtered databases
   filteredDatabases = computed(() => {
@@ -447,12 +543,110 @@ export class SchemaBrowserComponent implements OnInit {
   selectTable(table: TableInfo): void {
     this.selectedTable.set(table);
     this.tableSelected.emit(table);
-    this.toast.success(`Selected table: ${table.schema}.${table.name}`);
+
+    // If auto-execute is enabled, execute the query immediately
+    if (this.autoExecute()) {
+      const sql = `SELECT * FROM ${table.schema}.${table.name} LIMIT 100;`;
+      this.executeQuery.emit(sql);
+      this.toast.success(`Executing query on ${table.schema}.${table.name}`);
+    } else {
+      this.toast.success(`Selected table: ${table.schema}.${table.name}`);
+    }
   }
 
   selectView(view: ViewInfo): void {
     this.viewSelected.emit(view);
-    this.toast.success(`Selected view: ${view.schema}.${view.name}`);
+
+    // If auto-execute is enabled, execute the view query immediately
+    if (this.autoExecute()) {
+      const sql = `SELECT * FROM ${view.schema}.${view.name} LIMIT 100;`;
+      this.executeQuery.emit(sql);
+      this.toast.success(`Executing query on view ${view.schema}.${view.name}`);
+    } else {
+      this.toast.success(`Selected view: ${view.schema}.${view.name}`);
+    }
+  }
+
+  /**
+   * Preview table - Show first 10 rows
+   */
+  onPreviewTable(table: TableInfo, event: Event): void {
+    event.stopPropagation(); // Prevent double-click event
+    this.previewTable.emit(table);
+    const sql = `SELECT * FROM ${table.schema}.${table.name} LIMIT 10;`;
+    this.executeQuery.emit(sql);
+    this.toast.success(`Previewing ${table.schema}.${table.name} (10 rows)`);
+  }
+
+  /**
+   * Generate INSERT template
+   */
+  generateInsert(table: TableInfo, event: Event): void {
+    event.stopPropagation();
+    const columns = table.columns.map(c => c.name).join(', ');
+    const values = table.columns.map(() => '?').join(', ');
+    const sql = `INSERT INTO ${table.schema}.${table.name}\n  (${columns})\nVALUES\n  (${values});`;
+    this.tableSelected.emit(table); // Load into editor
+    this.toast.success(`Generated INSERT template for ${table.name}`);
+  }
+
+  /**
+   * Generate UPDATE template
+   */
+  generateUpdate(table: TableInfo, event: Event): void {
+    event.stopPropagation();
+    const setClauses = table.columns
+      .filter(c => !c.isPrimaryKey)
+      .map(c => `  ${c.name} = ?`)
+      .join(',\n');
+    const primaryKey = table.columns.find(c => c.isPrimaryKey);
+    const whereClause = primaryKey ? `WHERE ${primaryKey.name} = ?` : 'WHERE condition';
+    const sql = `UPDATE ${table.schema}.${table.name}\nSET\n${setClauses}\n${whereClause};`;
+    this.tableSelected.emit(table); // Load into editor
+    this.toast.success(`Generated UPDATE template for ${table.name}`);
+  }
+
+  /**
+   * Generate DELETE template
+   */
+  generateDelete(table: TableInfo, event: Event): void {
+    event.stopPropagation();
+    const primaryKey = table.columns.find(c => c.isPrimaryKey);
+    const whereClause = primaryKey ? `WHERE ${primaryKey.name} = ?` : 'WHERE condition';
+    const sql = `DELETE FROM ${table.schema}.${table.name}\n${whereClause};`;
+    this.tableSelected.emit(table); // Load into editor
+    this.toast.success(`Generated DELETE template for ${table.name}`);
+  }
+
+  /**
+   * Describe table (show structure)
+   */
+  describeTable(table: TableInfo, event: Event): void {
+    event.stopPropagation();
+    // For PostgreSQL
+    const sql = this.databaseType === DatabaseType.PostgreSQL || this.databaseType === DatabaseType.Redshift
+      ? `SELECT
+  column_name,
+  data_type,
+  is_nullable,
+  column_default
+FROM information_schema.columns
+WHERE table_schema = '${table.schema}'
+  AND table_name = '${table.name}'
+ORDER BY ordinal_position;`
+      : `DESCRIBE ${table.schema}.${table.name};`;
+
+    this.executeQuery.emit(sql);
+    this.toast.success(`Describing table ${table.name}`);
+  }
+
+  /**
+   * Toggle auto-execute
+   */
+  toggleAutoExecute(): void {
+    this.autoExecute.set(!this.autoExecute());
+    const status = this.autoExecute() ? 'enabled' : 'disabled';
+    this.toast.success(`Auto-execute ${status}`);
   }
 
   getSchemaCount(database: DatabaseInfo): string {

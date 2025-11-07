@@ -82,7 +82,9 @@ import { ToastService } from '../../../core/services/toast.service';
               [connectionId]="activeConnection()?.id || ''"
               [databaseType]="activeConnection()?.type || defaultDatabaseType"
               (tableSelected)="onTableSelected($event)"
-              (viewSelected)="onViewSelected($event)">
+              (viewSelected)="onViewSelected($event)"
+              (executeQuery)="onExecuteQuery($event)"
+              (previewTable)="onPreviewTable($event)">
             </app-schema-browser>
           </aside>
         }
@@ -461,5 +463,29 @@ LIMIT 100;`;
       this.sqlEditor.setSQL(sql);
       this.toast.success(`Loaded SELECT query for view ${view.schema}.${view.name}`);
     }
+  }
+
+  /**
+   * Execute query from schema browser (auto-execute feature)
+   */
+  onExecuteQuery(sql: string): void {
+    if (this.sqlEditor) {
+      this.sqlEditor.setSQL(sql);
+      // Trigger query execution
+      setTimeout(() => {
+        if (this.sqlEditor) {
+          this.sqlEditor.executeQuery();
+        }
+      }, 100);
+    }
+  }
+
+  /**
+   * Preview table from schema browser
+   */
+  onPreviewTable(table: TableInfo): void {
+    // Same as onExecuteQuery but triggered from preview button
+    const sql = `SELECT * FROM ${table.schema}.${table.name} LIMIT 10;`;
+    this.onExecuteQuery(sql);
   }
 }

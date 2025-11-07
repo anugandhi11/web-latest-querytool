@@ -59,12 +59,26 @@ import { QueryProgressComponent } from './query-progress.component';
           <button class="btn btn-ghost" (click)="clearEditor()">
             🗑️ Clear
           </button>
+          <button class="btn btn-ghost" (click)="importSQL()" title="Import SQL file">
+            📂 Import
+          </button>
+          <button class="btn btn-ghost" (click)="exportSQL()" title="Export SQL file">
+            💾 Export
+          </button>
           <button class="btn btn-ghost" (click)="toggleFullscreen()" [title]="isFullscreen() ? 'Exit Full Screen' : 'Full Screen'">
             {{ isFullscreen() ? '⬅️' : '⛶' }}
           </button>
         </div>
 
         <div class="toolbar-separator"></div>
+
+        <!-- Hidden file input for import -->
+        <input
+          #fileInput
+          type="file"
+          accept=".sql,.txt"
+          (change)="onFileSelected($event)"
+          style="display: none">
 
         <div class="status-indicator flex items-center gap-sm">
           @if (isExecuting()) {
@@ -127,6 +141,9 @@ export class MonacoSqlEditorComponent implements AfterViewInit, OnDestroy {
 
   @ViewChild(QueryProgressComponent)
   queryProgress!: QueryProgressComponent;
+
+  @ViewChild('fileInput')
+  fileInput!: ElementRef<HTMLInputElement>;
 
   @Input() connectionId: string = '';
   @Input() databaseType: 'PostgreSQL' | 'MySQL' | 'SQLServer' | 'Redshift' = 'PostgreSQL';
@@ -545,5 +562,72 @@ SELECT * FROM `;
     } else {
       return date.toLocaleString();
     }
+  }
+
+  /**
+   * Import SQL file
+   */
+  importSQL(): void {
+    if (this.fileInput) {
+      this.fileInput.nativeElement.click();
+    }
+  }
+
+  /**
+   * Handle file selection
+   */
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files && input.files.length > 0) {
+      const file = input.files[0];
+      const reader = new FileReader();
+
+      reader.onload = (e) => {
+        const content = e.target?.result as string;
+        if (this.editor) {
+          this.editor.setValue(content);
+          this.toast.success(`Imported ${file.name} (${Math.round(file.size / 1024)} KB)`);
+          this.statusMessage.set('File imported');
+        }
+      };
+
+      reader.onerror = () => {
+        this.toast.error('Failed to read file');
+      };
+
+      reader.readAsText(file);
+      // Reset input so same file can be selected again
+      input.value = '';
+    }
+  }
+
+  /**
+   * Export SQL file
+   */
+  exportSQL(): void {
+    if (!this.editor) return;
+
+    const sql = this.editor.getValue();
+    if (!sql.trim()) {
+      this.toast.warning('No SQL to export');
+      return;
+    }
+
+    // Create blob and download
+    const blob = new Blob([sql], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const filename = `query_${timestamp}.sql`;
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    this.toast.success(`Exported ${filename}`);
+    this.statusMessage.set('SQL exported');
   }
 }

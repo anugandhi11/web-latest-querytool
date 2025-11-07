@@ -51,8 +51,14 @@ import * as XLSX from 'xlsx';
           <button class="btn btn-secondary" (click)="copyAsCSV()" title="Copy all data as CSV">
             📋 Copy as CSV
           </button>
+          <button class="btn btn-secondary" (click)="exportAsSQL()" title="Export as SQL INSERT statements">
+            💾 Export SQL
+          </button>
           <button class="btn btn-secondary" (click)="exportToCsv()">
             💾 Export CSV
+          </button>
+          <button class="btn btn-secondary" (click)="exportToExcel()">
+            💾 Export Excel
           </button>
           <button class="btn btn-secondary" (click)="autoSizeAll()">
             ↔️ Auto-size
@@ -495,6 +501,77 @@ export class QueryResultsGridComponent {
     } catch (error) {
       this.toast.error('Failed to copy to clipboard');
       console.error('[QueryResultsGrid] Copy failed:', error);
+    }
+  }
+
+  /**
+   * Export data as SQL INSERT statements
+   */
+  exportAsSQL(): void {
+    const data = this.rowData();
+
+    if (data.length === 0) {
+      this.toast.warning('No data to export');
+      return;
+    }
+
+    try {
+      const columns = this.columnDefs().map(col => col.field || '');
+      const tableName = 'table_name'; // User should replace this
+
+      // Generate SQL INSERT statements
+      const sqlStatements = data.map(row => {
+        const values = columns.map(col => {
+          const value = row[col];
+          if (value === null || value === undefined) {
+            return 'NULL';
+          } else if (typeof value === 'string') {
+            // Escape single quotes
+            return `'${value.replace(/'/g, "''")}'`;
+          } else if (typeof value === 'number') {
+            return value.toString();
+          } else if (typeof value === 'boolean') {
+            return value ? 'TRUE' : 'FALSE';
+          } else if (value instanceof Date) {
+            return `'${value.toISOString()}'`;
+          } else {
+            return `'${String(value).replace(/'/g, "''")}'`;
+          }
+        }).join(', ');
+
+        return `INSERT INTO ${tableName} (${columns.join(', ')})\nVALUES (${values});`;
+      }).join('\n\n');
+
+      // Add header comment
+      const sql = `-- SQL INSERT statements generated from query results
+-- Total rows: ${data.length}
+-- Generated: ${new Date().toISOString()}
+--
+-- IMPORTANT: Replace 'table_name' with your actual table name
+-- =========================================================
+
+${sqlStatements}
+`;
+
+      // Download as .sql file
+      const blob = new Blob([sql], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      const filename = `insert_statements_${timestamp}.sql`;
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      this.toast.success(`Exported ${data.length} rows as SQL INSERT statements`);
+      console.log('[QueryResultsGrid] Exported as SQL INSERT');
+    } catch (error) {
+      this.toast.error('Failed to export as SQL');
+      console.error('[QueryResultsGrid] SQL export failed:', error);
     }
   }
 
