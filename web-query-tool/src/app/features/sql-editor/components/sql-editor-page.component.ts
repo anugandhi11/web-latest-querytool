@@ -5,8 +5,9 @@ import { MonacoSqlEditorComponent } from './monaco-sql-editor.component';
 import { QueryResultsGridComponent } from '../../data-grid/components/query-results-grid.component';
 import { QueryHistoryPanelComponent } from './query-history-panel.component';
 import { SqlSnippetsPanelComponent } from './sql-snippets-panel.component';
+import { SchemaBrowserComponent } from './schema-browser.component';
 import { ConnectionStatusIndicatorComponent } from '../../../shared/components/connection-status-indicator.component';
-import { QueryResult } from '../../../core/models/query.models';
+import { QueryResult, TableInfo, ViewInfo, DatabaseType } from '../../../core/models/query.models';
 import { ConnectionService } from '../../../core/services/connection.service';
 import { ToastService } from '../../../core/services/toast.service';
 
@@ -28,6 +29,7 @@ import { ToastService } from '../../../core/services/toast.service';
     QueryResultsGridComponent,
     QueryHistoryPanelComponent,
     SqlSnippetsPanelComponent,
+    SchemaBrowserComponent,
     ConnectionStatusIndicatorComponent
   ],
   template: `
@@ -53,6 +55,9 @@ import { ToastService } from '../../../core/services/toast.service';
                 ➕ Add Connection
               </a>
             }
+            <button class="btn btn-sm btn-secondary" (click)="toggleSchemaBrowser()">
+              {{ showSchemaBrowser() ? '✕ Hide' : '🗂️ Show' }} Schema
+            </button>
             <button class="btn btn-sm btn-secondary" (click)="toggleSnippets()">
               {{ showSnippets() ? '✕ Hide' : '📚 Show' }} Snippets
             </button>
@@ -67,19 +72,22 @@ import { ToastService } from '../../../core/services/toast.service';
 
       <!-- Main Content Area with Sidebar Layout -->
       <div class="page-content"
-           [class.with-sidebar]="showHistory()"
-           [class.with-snippets]="showSnippets()"
-           [class.with-both-sidebars]="showHistory() && showSnippets()">
-        <!-- History Sidebar -->
-        @if (showHistory()) {
-          <aside class="history-sidebar">
-            <app-query-history-panel
-              (querySelected)="onQuerySelected($event)">
-            </app-query-history-panel>
+           [class.with-schema]="showSchemaBrowser()"
+           [class.with-history]="showHistory()"
+           [class.with-snippets]="showSnippets()">
+        <!-- Schema Browser Sidebar (Left) -->
+        @if (showSchemaBrowser()) {
+          <aside class="schema-sidebar">
+            <app-schema-browser
+              [connectionId]="activeConnection()?.id || ''"
+              [databaseType]="activeConnection()?.type || defaultDatabaseType"
+              (tableSelected)="onTableSelected($event)"
+              (viewSelected)="onViewSelected($event)">
+            </app-schema-browser>
           </aside>
         }
 
-        <!-- Main Editor Section -->
+        <!-- Main Editor Section (Center) -->
         <div class="editor-section">
           <!-- SQL Editor Card -->
         <section class="card editor-card">
@@ -146,7 +154,16 @@ import { ToastService } from '../../../core/services/toast.service';
         </div>
         <!-- End Editor Section -->
 
-        <!-- Snippets Sidebar -->
+        <!-- History Sidebar (Right) -->
+        @if (showHistory()) {
+          <aside class="history-sidebar">
+            <app-query-history-panel
+              (querySelected)="onQuerySelected($event)">
+            </app-query-history-panel>
+          </aside>
+        }
+
+        <!-- Snippets Sidebar (Right) -->
         @if (showSnippets()) {
           <aside class="snippets-sidebar">
             <app-sql-snippets-panel
@@ -214,45 +231,69 @@ import { ToastService } from '../../../core/services/toast.service';
       border-bottom: 1px solid var(--border-primary);
     }
 
-    /* Content Area */
+    /* Content Area - Dynamic Grid Layout */
     .page-content {
       flex: 1;
-      display: flex;
+      display: grid;
       gap: var(--spacing-lg);
       padding: var(--spacing-lg);
       overflow: hidden;
+      grid-template-columns: 1fr;
     }
 
-    .page-content.with-sidebar {
-      display: grid;
-      grid-template-columns: 320px 1fr;
-      gap: var(--spacing-lg);
+    /* Schema browser only (left) */
+    .page-content.with-schema {
+      grid-template-columns: 280px 1fr;
     }
 
-    .page-content.with-snippets {
-      display: grid;
+    /* History or Snippets only (right) */
+    .page-content.with-history:not(.with-schema):not(.with-snippets),
+    .page-content.with-snippets:not(.with-schema):not(.with-history) {
       grid-template-columns: 1fr 320px;
-      gap: var(--spacing-lg);
     }
 
-    .page-content.with-both-sidebars {
-      display: grid;
-      grid-template-columns: 320px 1fr 320px;
-      gap: var(--spacing-lg);
+    /* Schema + History */
+    .page-content.with-schema.with-history:not(.with-snippets) {
+      grid-template-columns: 280px 1fr 320px;
     }
 
-    /* History Sidebar */
+    /* Schema + Snippets */
+    .page-content.with-schema.with-snippets:not(.with-history) {
+      grid-template-columns: 280px 1fr 320px;
+    }
+
+    /* Schema + History + Snippets (all three!) */
+    .page-content.with-schema.with-history.with-snippets {
+      grid-template-columns: 280px 1fr 320px 320px;
+    }
+
+    /* History + Snippets (both right sidebars) */
+    .page-content.with-history.with-snippets:not(.with-schema) {
+      grid-template-columns: 1fr 320px 320px;
+    }
+
+    /* Schema Browser Sidebar (Left) */
+    .schema-sidebar {
+      min-width: 280px;
+      width: 280px;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-lg);
+    }
+
+    /* History Sidebar (Right) */
     .history-sidebar {
       min-width: 320px;
-      max-width: 400px;
+      width: 320px;
       height: 100%;
       overflow: hidden;
     }
 
-    /* Snippets Sidebar */
+    /* Snippets Sidebar (Right) */
     .snippets-sidebar {
       min-width: 320px;
-      max-width: 400px;
+      width: 320px;
       height: 100%;
       overflow: hidden;
     }
@@ -315,11 +356,15 @@ export class SqlEditorPageComponent {
   // Use shared connection service
   activeConnection = this.connectionService.activeConnection;
 
+  // Default database type for schema browser
+  defaultDatabaseType = DatabaseType.PostgreSQL;
+
   // Component state using Angular 19 signals
   queryStatus = signal<string>('Ready');
   lastQuerySuccess = signal<boolean>(false);
   showHistory = signal<boolean>(false);
   showSnippets = signal<boolean>(false);
+  showSchemaBrowser = signal<boolean>(true); // Auto-show schema browser by default
 
   /**
    * Handle successful query execution
@@ -363,6 +408,13 @@ export class SqlEditorPageComponent {
   }
 
   /**
+   * Toggle schema browser panel
+   */
+  toggleSchemaBrowser(): void {
+    this.showSchemaBrowser.set(!this.showSchemaBrowser());
+  }
+
+  /**
    * Load query from history into editor
    */
   onQuerySelected(sql: string): void {
@@ -378,6 +430,36 @@ export class SqlEditorPageComponent {
     if (this.sqlEditor) {
       this.sqlEditor.setSQL(template);
       this.toast.success('SQL template loaded into editor!');
+    }
+  }
+
+  /**
+   * Handle table selection from schema browser
+   * Generates SELECT * query for the selected table
+   */
+  onTableSelected(table: TableInfo): void {
+    if (this.sqlEditor) {
+      const sql = `-- Selected from schema browser
+SELECT *
+FROM ${table.schema}.${table.name}
+LIMIT 100;`;
+      this.sqlEditor.setSQL(sql);
+      this.toast.success(`Loaded SELECT query for ${table.schema}.${table.name}`);
+    }
+  }
+
+  /**
+   * Handle view selection from schema browser
+   * Generates SELECT * query for the selected view
+   */
+  onViewSelected(view: ViewInfo): void {
+    if (this.sqlEditor) {
+      const sql = `-- Selected from schema browser
+SELECT *
+FROM ${view.schema}.${view.name}
+LIMIT 100;`;
+      this.sqlEditor.setSQL(sql);
+      this.toast.success(`Loaded SELECT query for view ${view.schema}.${view.name}`);
     }
   }
 }

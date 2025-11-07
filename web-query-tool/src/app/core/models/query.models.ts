@@ -71,3 +71,54 @@ export interface QueryHistory {
   connectionId: string;
   status: 'success' | 'error';
 }
+
+/**
+ * Database Schema Browser Models
+ * For left-side navigation tree (like DBeaver/CloudBeaver)
+ */
+
+export interface DatabaseObject {
+  name: string;
+  type: 'database' | 'schema' | 'table' | 'view' | 'column';
+  expanded?: boolean;
+  children?: DatabaseObject[];
+}
+
+export interface SchemaMetadata {
+  connectionId: string;
+  databases: DatabaseInfo[];
+}
+
+export interface DatabaseInfo {
+  name: string;
+  schemas: SchemaInfo[];
+}
+
+export interface SchemaInfo {
+  name: string;
+  tables: TableInfo[];
+  views: ViewInfo[];
+}
+
+export interface TableInfo {
+  name: string;
+  schema: string;
+  rowCount?: number;
+  columns: ColumnInfo[];
+}
+
+export interface ViewInfo {
+  name: string;
+  schema: string;
+  definition?: string;
+}
+
+export interface ColumnInfo {
+  name: string;
+  dataType: string;
+  nullable: boolean;
+  isPrimaryKey?: boolean;
+  isForeignKey?: boolean;
+  defaultValue?: string;
+  maxLength?: number;
+}
