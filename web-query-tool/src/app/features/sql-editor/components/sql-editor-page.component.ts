@@ -84,7 +84,8 @@ import { ToastService } from '../../../core/services/toast.service';
               (tableSelected)="onTableSelected($event)"
               (viewSelected)="onViewSelected($event)"
               (executeQuery)="onExecuteQuery($event)"
-              (previewTable)="onPreviewTable($event)">
+              (previewTable)="onPreviewTable($event)"
+              (loadSQL)="onLoadSQL($event)">
             </app-schema-browser>
           </aside>
         }
@@ -487,5 +488,15 @@ LIMIT 100;`;
     // Same as onExecuteQuery but triggered from preview button
     const sql = `SELECT * FROM ${table.schema}.${table.name} LIMIT 10;`;
     this.onExecuteQuery(sql);
+  }
+
+  /**
+   * Load SQL into editor without executing (for templates)
+   */
+  onLoadSQL(sql: string): void {
+    if (this.sqlEditor) {
+      this.sqlEditor.setSQL(sql);
+      this.toast.success('SQL template loaded into editor');
+    }
   }
 }

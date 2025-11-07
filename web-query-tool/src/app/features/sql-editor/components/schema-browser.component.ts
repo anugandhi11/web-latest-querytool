@@ -424,6 +424,7 @@ export class SchemaBrowserComponent implements OnInit {
   @Output() viewSelected = new EventEmitter<ViewInfo>();
   @Output() executeQuery = new EventEmitter<string>();
   @Output() previewTable = new EventEmitter<TableInfo>();
+  @Output() loadSQL = new EventEmitter<string>(); // Load SQL into editor without executing
 
   private schemaBrowser = inject(SchemaBrowserService);
   private toast = inject(ToastService);
@@ -585,8 +586,12 @@ export class SchemaBrowserComponent implements OnInit {
     event.stopPropagation();
     const columns = table.columns.map(c => c.name).join(', ');
     const values = table.columns.map(() => '?').join(', ');
-    const sql = `INSERT INTO ${table.schema}.${table.name}\n  (${columns})\nVALUES\n  (${values});`;
-    this.tableSelected.emit(table); // Load into editor
+    const sql = `-- INSERT template for ${table.schema}.${table.name}
+INSERT INTO ${table.schema}.${table.name}
+  (${columns})
+VALUES
+  (${values});`;
+    this.loadSQL.emit(sql); // Load template into editor
     this.toast.success(`Generated INSERT template for ${table.name}`);
   }
 
@@ -601,8 +606,12 @@ export class SchemaBrowserComponent implements OnInit {
       .join(',\n');
     const primaryKey = table.columns.find(c => c.isPrimaryKey);
     const whereClause = primaryKey ? `WHERE ${primaryKey.name} = ?` : 'WHERE condition';
-    const sql = `UPDATE ${table.schema}.${table.name}\nSET\n${setClauses}\n${whereClause};`;
-    this.tableSelected.emit(table); // Load into editor
+    const sql = `-- UPDATE template for ${table.schema}.${table.name}
+UPDATE ${table.schema}.${table.name}
+SET
+${setClauses}
+${whereClause};`;
+    this.loadSQL.emit(sql); // Load template into editor
     this.toast.success(`Generated UPDATE template for ${table.name}`);
   }
 
@@ -613,8 +622,10 @@ export class SchemaBrowserComponent implements OnInit {
     event.stopPropagation();
     const primaryKey = table.columns.find(c => c.isPrimaryKey);
     const whereClause = primaryKey ? `WHERE ${primaryKey.name} = ?` : 'WHERE condition';
-    const sql = `DELETE FROM ${table.schema}.${table.name}\n${whereClause};`;
-    this.tableSelected.emit(table); // Load into editor
+    const sql = `-- DELETE template for ${table.schema}.${table.name}
+DELETE FROM ${table.schema}.${table.name}
+${whereClause};`;
+    this.loadSQL.emit(sql); // Load template into editor
     this.toast.success(`Generated DELETE template for ${table.name}`);
   }
 
