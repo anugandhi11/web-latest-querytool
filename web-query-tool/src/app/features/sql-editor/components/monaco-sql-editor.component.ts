@@ -489,7 +489,10 @@ SELECT * FROM `;
 
     const selection = this.editor.getSelection();
     if (selection && !selection.isEmpty()) {
-      return this.editor.getModel()!.getValueInRange(selection);
+      const model = this.editor.getModel();
+      if (model) {
+        return model.getValueInRange(selection);
+      }
     }
 
     return this.editor.getValue();

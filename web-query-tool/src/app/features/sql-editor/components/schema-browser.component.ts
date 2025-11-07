@@ -1,6 +1,8 @@
-import { Component, OnInit, Input, Output, EventEmitter, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, OnDestroy, Input, Output, EventEmitter, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subject } from 'rxjs';
+import { takeUntil } from 'rxjs/operators';
 import { SchemaBrowserService } from '../../../core/services/schema-browser.service';
 import {
   DatabaseInfo,
@@ -416,7 +418,7 @@ import { ToastService } from '../../../core/services/toast.service';
     }
   `]
 })
-export class SchemaBrowserComponent implements OnInit {
+export class SchemaBrowserComponent implements OnInit, OnDestroy {
   @Input() connectionId: string = '';
   @Input() databaseType: DatabaseType = DatabaseType.PostgreSQL;
 
@@ -428,6 +430,7 @@ export class SchemaBrowserComponent implements OnInit {
 
   private schemaBrowser = inject(SchemaBrowserService);
   private toast = inject(ToastService);
+  private destroy$ = new Subject<void>();
 
   isLoading = this.schemaBrowser.isLoading;
   error = this.schemaBrowser.error;
@@ -473,31 +476,40 @@ export class SchemaBrowserComponent implements OnInit {
     }
   }
 
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+  }
+
   loadSchema(): void {
-    this.schemaBrowser.fetchSchemaMetadata(this.connectionId, this.databaseType).subscribe({
-      next: (metadata) => {
-        console.log('[SchemaBrowser] Loaded schema:', metadata);
-        // Auto-expand first database and schema
-        if (metadata.databases.length > 0) {
-          const firstDb = metadata.databases[0];
-          this.expandedNodes.add(firstDb.name);
-          if (firstDb.schemas.length > 0) {
-            this.expandedNodes.add(`${firstDb.name}.${firstDb.schemas[0].name}`);
+    this.schemaBrowser.fetchSchemaMetadata(this.connectionId, this.databaseType)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (metadata) => {
+          console.log('[SchemaBrowser] Loaded schema:', metadata);
+          // Auto-expand first database and schema
+          if (metadata.databases.length > 0) {
+            const firstDb = metadata.databases[0];
+            this.expandedNodes.add(firstDb.name);
+            if (firstDb.schemas.length > 0) {
+              this.expandedNodes.add(`${firstDb.name}.${firstDb.schemas[0].name}`);
+            }
           }
+        },
+        error: (err) => {
+          console.error('[SchemaBrowser] Error loading schema:', err);
         }
-      },
-      error: (err) => {
-        console.error('[SchemaBrowser] Error loading schema:', err);
-      }
-    });
+      });
   }
 
   refreshSchema(): void {
-    this.schemaBrowser.refreshSchema(this.connectionId, this.databaseType).subscribe({
-      next: () => {
-        this.toast.success('Schema refreshed');
-      }
-    });
+    this.schemaBrowser.refreshSchema(this.connectionId, this.databaseType)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          this.toast.success('Schema refreshed');
+        }
+      });
   }
 
   filterTrees(): void {

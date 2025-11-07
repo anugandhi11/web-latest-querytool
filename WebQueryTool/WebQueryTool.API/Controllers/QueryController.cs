@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Text;
 using System.Diagnostics;
+using System.Data;
+using Npgsql;
+using Dapper;
 using WebQueryTool.Application.DTOs;
 
 namespace WebQueryTool.API.Controllers
@@ -22,11 +25,15 @@ namespace WebQueryTool.API.Controllers
     public class QueryController : ControllerBase
     {
         private readonly ILogger<QueryController> _logger;
+        private readonly IConfiguration _configuration;
         // TODO: Inject IQueryExecutionService when implemented
 
-        public QueryController(ILogger<QueryController> logger)
+        public QueryController(
+            ILogger<QueryController> logger,
+            IConfiguration configuration)
         {
             _logger = logger;
+            _configuration = configuration;
         }
 
         /// <summary>
@@ -128,9 +135,8 @@ namespace WebQueryTool.API.Controllers
                     });
                 }
 
-                // STEP 4: Execute query (TODO: Implement with Dapper)
-                // For now, return mock data to demonstrate the flow
-                var result = await ExecuteQueryMock(sqlQuery, request);
+                // STEP 4: Execute query with Dapper
+                var result = await ExecuteQueryReal(sqlQuery, request);
 
                 stopwatch.Stop();
                 result.ExecutionTimeMs = stopwatch.ElapsedMilliseconds;
@@ -227,34 +233,95 @@ namespace WebQueryTool.API.Controllers
         }
 
         /// <summary>
-        /// Mock query execution (for demonstration)
-        /// TODO: Replace with actual Dapper implementation
+        /// Execute query with Dapper (real implementation)
         /// </summary>
-        private async Task<QueryResultDto> ExecuteQueryMock(string sql, QueryRequestDto request)
+        private async Task<QueryResultDto> ExecuteQueryReal(string sql, QueryRequestDto request)
         {
-            // Simulate async database call
-            await Task.Delay(100);
+            // Get connection string
+            var connectionString = GetConnectionString(request.ConnectionId);
+            if (string.IsNullOrEmpty(connectionString))
+            {
+                throw new InvalidOperationException($"Connection '{request.ConnectionId}' not found");
+            }
 
-            // Return mock data
+            using var connection = new NpgsqlConnection(connectionString);
+            await connection.OpenAsync();
+
+            // Execute query with Dapper
+            var commandDefinition = new CommandDefinition(
+                sql,
+                commandTimeout: request.ExecutionOptions.Timeout
+            );
+
+            // Execute and get results
+            var results = await connection.QueryAsync(commandDefinition);
+            var rows = results.ToList();
+
+            // Limit rows if needed
+            if (request.ExecutionOptions.MaxRows > 0 && rows.Count > request.ExecutionOptions.MaxRows)
+            {
+                rows = rows.Take(request.ExecutionOptions.MaxRows).ToList();
+            }
+
+            // Extract column metadata from first row
+            var columns = new List<ColumnMetadataDto>();
+            if (rows.Count > 0 && rows[0] is IDictionary<string, object> firstRow)
+            {
+                foreach (var kvp in firstRow)
+                {
+                    var value = kvp.Value;
+                    var dataType = value?.GetType().Name ?? "object";
+
+                    columns.Add(new ColumnMetadataDto
+                    {
+                        Name = kvp.Key,
+                        DataType = MapDotNetTypeToSqlType(dataType),
+                        Nullable = value == null
+                    });
+                }
+            }
+
             return new QueryResultDto
             {
-                Rows = new List<dynamic>
-                {
-                    new { id = 1, name = "John Doe", department = "IT", salary = 75000 },
-                    new { id = 2, name = "Jane Smith", department = "HR", salary = 65000 },
-                    new { id = 3, name = "Bob Johnson", department = "IT", salary = 80000 }
-                },
-                TotalRows = 3,
+                Rows = rows,
+                TotalRows = rows.Count,
                 ExecutionTimeMs = 0, // Will be set by caller
                 Timestamp = DateTime.UtcNow,
-                Columns = new List<ColumnMetadataDto>
-                {
-                    new() { Name = "id", DataType = "int", Nullable = false },
-                    new() { Name = "name", DataType = "varchar", Nullable = false },
-                    new() { Name = "department", DataType = "varchar", Nullable = true },
-                    new() { Name = "salary", DataType = "decimal", Nullable = true }
-                }
+                Columns = columns
             };
+        }
+
+        /// <summary>
+        /// Map .NET type to SQL type for display
+        /// </summary>
+        private string MapDotNetTypeToSqlType(string dotNetType)
+        {
+            return dotNetType switch
+            {
+                "Int16" => "smallint",
+                "Int32" => "int",
+                "Int64" => "bigint",
+                "Decimal" => "decimal",
+                "Double" => "double",
+                "Single" => "float",
+                "String" => "varchar",
+                "Boolean" => "boolean",
+                "DateTime" => "timestamp",
+                "Guid" => "uuid",
+                "Byte[]" => "bytea",
+                _ => dotNetType.ToLower()
+            };
+        }
+
+        /// <summary>
+        /// Get connection string for a connection ID
+        /// TODO: Replace with actual connection service lookup
+        /// </summary>
+        private string? GetConnectionString(string connectionId)
+        {
+            // For now, return default PostgreSQL connection from appsettings
+            // In production, look up the connection details from database/service
+            return _configuration.GetConnectionString("DefaultConnection");
         }
     }
 }
